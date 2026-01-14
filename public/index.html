@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quản Lý Chi Tiêu</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a1b26">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header Section -->
+        <header class="main-header glass-panel">
+            <div class="header-top">
+                <div class="greeting">
+                    <span>Ví của tôi</span>
+                    <h2>Cá nhân</h2>
+                </div>
+                <!-- Header Actions -->
+                <div class="header-actions">
+                    <button class="btn-icon glassy" id="btn-show-search">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                    <button class="btn-icon glassy" id="btn-show-analysis">
+                        <i class="fa-solid fa-chart-pie"></i>
+                    </button>
+                    <div class="user-avatar" id="btn-settings" style="cursor: pointer;">
+                       <i class="fa-solid fa-gear"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Balance Card -->
+            <div class="balance-card">
+                <span class="label">Tổng chi tiêu</span>
+                <h1 class="amount" id="total-balance">0 ₫</h1>
+                <div class="balance-footer">
+                    <span class="date-badge" id="current-month">Tháng 1</span>
+                    <span class="comparison-badge" id="expense-comparison" style="display:none">
+                        <!-- Injected via JS -->
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Actions -->
+        <div class="quick-actions">
+            <!-- Used by FAB now, but kept for layout structure if needed -->
+        </div>
+
+        <!-- Recent Transactions -->
+        <section class="transactions-section">
+            <div class="filter-tabs">
+                <button class="filter-chip active" data-filter="day">Hôm nay</button>
+                <button class="filter-chip" data-filter="week">Tuần này</button>
+                <button class="filter-chip" data-filter="month">Tháng này</button>
+                <button class="filter-chip" data-filter="year">1 năm</button>
+                <button class="filter-chip" data-filter="all">Tất cả</button>
+            </div>
+            
+            <div class="section-header">
+                <h3>Giao dịch</h3>
+                <span id="filter-label" class="filter-info">Tháng 1/2026</span>
+            </div>
+            <div class="transactions-list" id="transactions-list">
+                <!-- Items will be injected here -->
+                <div class="loading-spinner">
+                    <i class="fa-solid fa-spinner fa-spin"></i> Loading...
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Floating Action Button -->
+    <button class="fab" id="fab-add">
+        <i class="fa-solid fa-plus"></i>
+    </button>
+
+    <!-- Modals -->
+    <!-- Add Transaction Modal -->
+    <div class="modal-overlay" id="modal-transaction">
+        <!-- ... existing ... -->
+        <div class="modal glass-panel slide-up">
+            <div class="modal-header">
+                <h3>Thêm Chi Tiêu</h3>
+            </div>
+            <div class="modal-body">
+                <form id="transaction-form">
+                    <div class="amount-row">
+                        <div class="input-wrapper huge-input">
+                            <input type="text" id="amount-input" placeholder="0" inputmode="numeric" required>
+                            <span class="currency-suffix">₫</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Danh mục</label>
+                        <div class="category-scroll" id="category-selector">
+                            <!-- Categories injected here -->
+                            <div class="category-item add-new-cat-btn" id="btn-add-category-trigger">
+                                <div class="icon"><i class="fa-solid fa-plus"></i></div>
+                                <span>Mới</span>
+                            </div>
+                        </div>
+                        <input type="hidden" id="selected-category" required>
+                    </div>
+
+                    <div class="details-row">
+                        <div class="input-wrapper date-wrapper">
+                            <i class="fa-regular fa-calendar"></i>
+                            <input type="date" id="date-input" required>
+                        </div>
+                        <div class="input-wrapper note-wrapper">
+                            <input type="text" id="note-input" placeholder="Ghi chú...">
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="btn-delete-transaction" style="display: none; color: var(--danger); border-color: var(--danger)">
+                        <i class="fa-solid fa-trash"></i> Xóa
+                    </button>
+                    <button type="button" class="btn-secondary" id="close-transaction-modal">Đóng</button>
+                    <button type="submit" class="btn-primary" id="btn-save-transaction">Lưu</button>
+                </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal-overlay center-modal" id="modal-confirm">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Xác nhận xoá</h3>
+            </div>
+            <div class="modal-confirm-content">
+                <p>Bạn có chắc chắn muốn xóa giao dịch này không? Hành động này không thể hoàn tác.</p>
+                <div class="modal-confirm-actions">
+                    <button id="btn-confirm-delete" class="btn-danger">Xóa luôn</button>
+                    <button id="btn-cancel-delete" class="btn-cancel">Hủy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Category Modal -->
+    <div class="modal-overlay" id="modal-category">
+        <div class="modal glass-panel center-modal">
+            <div class="modal-header">
+                <h3>Thêm Danh Mục</h3>
+                <button class="btn-close" id="close-category-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="category-form">
+                    <div class="form-group">
+                        <label>Tên danh mục</label>
+                        <input type="text" id="new-category-name" placeholder="Ví dụ: Du lịch" required>
+                    </div>
+                     <button type="submit" class="btn-primary">Tạo danh mục</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Modal -->
+    <div class="modal-overlay" id="modal-analysis">
+        <!-- ... existing ... -->
+         <div class="modal glass-panel slide-up" style="max-height: 85vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3>Phân Tích Chi Tiêu</h3>
+                <button class="btn-close" id="close-analysis-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-tab="overview">Tổng quan</button>
+                <button class="modal-tab" data-tab="trends">Xu hướng</button>
+            </div>
+
+            <div class="modal-body">
+                <div id="tab-overview" class="tab-content active">
+                    <div id="analysis-overview" class="analysis-grid"></div>
+                    <div class="analysis-section">
+                        <h4 class="section-title">Theo Danh Mục</h4>
+                        <div class="breakdown-list" id="category-breakdown"></div>
+                    </div>
+                </div>
+
+                <div id="tab-trends" class="tab-content">
+                    <div class="analysis-section">
+                        <div class="section-header" style="margin-bottom: 0.5rem;">
+                            <h4 class="section-title" style="margin-bottom:0">Biểu đồ</h4>
+                            <div class="filter-tabs" style="margin-bottom:0; gap:5px;">
+                                <button class="filter-chip active" id="btn-trend-7d" style="padding: 4px 12px; font-size: 0.75rem;">7 Ngày</button>
+                                <button class="filter-chip" id="btn-trend-6m" style="padding: 4px 12px; font-size: 0.75rem;">6 Tháng</button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <div class="custom-select-wrapper" id="trend-category-wrapper">
+                                <div class="custom-select-trigger" id="trend-category-trigger">
+                                    <span id="trend-category-label">Tất cả danh mục</span>
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </div>
+                                <div class="custom-options" id="trend-category-options"></div>
+                            </div>
+                        </div>
+
+                        <div id="trend-chart-container" class="simple-bar-chart"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div class="modal-overlay" id="modal-search">
+        <div class="modal glass-panel slide-up">
+            <div class="modal-header">
+                <h3>Tìm kiếm & Lọc</h3>
+                <button class="btn-close" id="close-search-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="search-form">
+                    <!-- Keyword -->
+                    <div class="form-group">
+                        <label>Từ khóa</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="search-keyword" placeholder="Nhập ghi chú, tên danh mục...">
+                        </div>
+                    </div>
+
+                    <!-- Category (Reuse Custom Select logic or simple select for now) -->
+                    <!-- Using Custom Select Structure for consistency -->
+                    <div class="form-group">
+                        <label>Danh mục</label>
+                        <div class="custom-select-wrapper" id="search-category-wrapper">
+                            <div class="custom-select-trigger" id="search-category-trigger">
+                                <span id="search-category-label">Tất cả</span>
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </div>
+                            <div class="custom-options" id="search-category-options">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+                        <input type="hidden" id="search-category-input" value="all">
+                    </div>
+
+                    <!-- Date Range -->
+                    <div class="form-group">
+                        <label>Khoảng thời gian</label>
+                        <div class="details-row">
+                            <div class="input-wrapper date-wrapper">
+                                <span style="font-size:0.8rem; opacity:0.7; margin-right:5px;">Từ</span>
+                                <input type="date" id="search-date-from">
+                            </div>
+                            <div class="input-wrapper date-wrapper">
+                                <span style="font-size:0.8rem; opacity:0.7; margin-right:5px;">Đến</span>
+                                <input type="date" id="search-date-to">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Amount Range -->
+                    <div class="form-group">
+                        <label>Số tiền (VNĐ)</label>
+                        <div class="details-row">
+                            <div class="input-wrapper">
+                                <input type="number" id="search-amount-min" placeholder="Tối thiểu">
+                            </div>
+                            <div class="input-wrapper">
+                                <input type="number" id="search-amount-max" placeholder="Tối đa">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" id="btn-reset-search">Đặt lại</button>
+                        <button type="submit" class="btn-primary">Tìm kiếm</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="modal-settings">
+        <div class="modal glass-panel center-modal">
+            <div class="modal-header">
+                <h3>Cài Đặt</h3>
+                <button class="btn-close" id="close-settings-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <button class="btn-primary" id="btn-export-data" style="margin-top:0">
+                    <i class="fa-solid fa-file-export"></i> Xuất dữ liệu (CSV)
+                </button>
+                <p style="margin-top: 1rem; text-align: center; font-size: 0.8rem; color: var(--text-muted); opacity: 0.7;">
+                    Dữ liệu sẽ được tải xuống dưới dạng file CSV.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Toast Notification -->
+    <div id="toast-container"></div>
+
+    <!-- Firebase Config (Placeholder) -->
+    <script type="module" src="js/firebase.js"></script>
+    <!-- App Logic -->
+    <script type="module" src="js/app.js"></script>
+    
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW registered'))
+                    .catch(err => console.log('SW failed', err));
+            });
+        }
+    </script>
+</body>
+</html>

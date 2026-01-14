@@ -1,0 +1,11 @@
+{
+  "name": "quan-ly-chi-tieu",
+  "version": "1.0.0",
+  "description": "Expense Tracker PWA",
+  "scripts": {
+    "start": "npx serve public"
+  },
+  "dependencies": {
+    "serve": "^14.2.0"
+  }
+}
