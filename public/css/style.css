@@ -874,9 +874,16 @@ input[type="text"]:focus {
 #modal-search input[type="date"] {
     background: transparent;
     border: none;
-    padding: 0; 
+    padding: 5px 0; 
     height: auto;
     font-size: 0.95rem;
+    width: 100%;
+    flex: 1;
+    color: white;
+    color-scheme: dark; /* Force dark mode picker/icon on iOS */
+    -webkit-appearance: none; /* Remove default styling to apply ours, but keep functionality */
+    appearance: none;
+    min-height: 24px; /* Ensure visual height */
 }
 
 #modal-search .input-wrapper input[type="number"] {
@@ -923,6 +930,58 @@ input[type=number] {
     font-size: 0.85rem;
     white-space: nowrap;
     padding-right: 0.5rem;
+}
+
+/* Amount Suggestions */
+.amount-suggestions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none; /* Hide scrollbar Firefox */
+    justify-content: center;
+    position: absolute; /* Float below input */
+    top: 100%;
+    left: 0;
+    width: 100%;
+    z-index: 10;
+}
+.amount-suggestions::-webkit-scrollbar {
+    display: none; /* Hide scrollbar Chrome */
+}
+
+.amount-row {
+    position: relative; /* Context for absolute positioning of suggestions */
+    margin-bottom: 2.5rem; /* Make space for suggestions */
+}
+
+.suggestion-chip {
+    background: rgba(127, 90, 240, 0.15); /* Primary tint */
+    border: 1px solid rgba(127, 90, 240, 0.3);
+    color: var(--primary);
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    animation: fadeIn 0.3s ease;
+}
+
+.suggestion-chip:hover {
+    background: rgba(127, 90, 240, 0.25);
+    transform: translateY(-1px);
+}
+
+.suggestion-chip:active {
+    transform: scale(0.95);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .custom-option {

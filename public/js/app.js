@@ -1,4 +1,4 @@
-import { db, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp, doc, updateDoc, deleteDoc } from './firebase.js';
+import { db, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp, doc, updateDoc, deleteDoc, onSnapshot } from './firebase.js';
 import { formatCurrency, parseCSV, showToast } from './utils.js';
 
 // State
@@ -139,32 +139,40 @@ async function loadInitialData() {
     }
 
     try {
-        // Check if we have any data in Firebase
-        const qCheck = query(collection(db, "transactions"), limit(1));
-        const checkSnapshot = await getDocs(qCheck);
+        const q = query(collection(db, "transactions"), orderBy("date", "desc"), limit(2000));
         
-        if (!checkSnapshot.empty) {
-            // Firebase has data, load it (Increase limit to cover all historical or implement pagination later)
-            // For this user size (~500), loading 1000 is fine.
-            const q = query(collection(db, "transactions"), orderBy("date", "desc"), limit(1000));
-            const querySnapshot = await getDocs(q);
-            
-            transactions = querySnapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
+        // Real-time Listener (Handles Cache + Updates)
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            transactions = snapshot.docs.map(doc => {
+                 const data = doc.data();
+                 return {
                     id: doc.id,
                     ...data,
                     // Ensure date is a JS Date object
-                    date: data.date && data.date.toDate ? data.date.toDate() : new Date(data.date)
-                };
+                    date: data.date && data.date.toDate ? data.date.toDate() : (new Date(data.date) || new Date())
+                 };
             });
-            console.log("Loaded data from Firebase");
-        } else {
-            console.log("Firebase is empty.");
-            transactions = [];
-        }
+            
+            // Re-render whenever data changes
+            renderTransactions();
+            
+            // Update Analysis if modal is open (optional)
+            if (document.getElementById('modal-analysis') && document.getElementById('modal-analysis').classList.contains('active')) {
+                // Check if these functions exist in global scope or specific scope? They seem global in app.js
+                if(typeof renderAnalysisOverview === 'function') renderAnalysisOverview();
+                if(typeof renderCategoryBreakdown === 'function') renderCategoryBreakdown();
+                if(typeof renderTrendChart === 'function') renderTrendChart();
+            }
+            
+            console.log("Data synced from " + (snapshot.metadata.fromCache ? "Cache" : "Server"));
+            
+        }, (error) => {
+             console.error("Error getting realtime update: ", error);
+             showToast("Lỗi đồng bộ dữ liệu!", "error");
+        });
+        
     } catch (e) {
-        console.error("Error loading data", e);
+        console.error("Error setting up listener", e);
         showToast("Lỗi kết nối dữ liệu!", "error");
     }
 }
@@ -810,29 +818,77 @@ function openEditModal(transaction) {
     modalTransaction.classList.add('active');
 }
 
-// Auto-format Amount Input
+// Auto-format Amount Input & Suggestions
 const amountInput = document.getElementById('amount-input');
+const amountSuggestions = document.getElementById('amount-suggestions');
+
 if (amountInput) {
     amountInput.addEventListener('input', (e) => {
-        // Get current cursor position
-        const selectionStart = e.target.selectionStart;
+        // Get current cursor position (though usually at end)
         const originalVal = e.target.value;
         
         // Remove non-digits
-        let value = originalVal.replace(/\D/g, '');
+        let valueStr = originalVal.replace(/\D/g, '');
+        let valueNum = parseInt(valueStr);
         
         // Format with dots
-        if (value) {
-            value = value.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        if (valueStr) {
+            e.target.value = valueStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        } else {
+             e.target.value = '';
         }
-        
-        e.target.value = value;
-        
-        // Simple cursor management: keep at end logic is usually annoying 
-        // but for amount inputs usually users type at end. 
-        // If editing in middle, this simple replacement jumps to end. 
-        // For now this is acceptable for a simple "type money" input.
+
+        // Suggestions Logic
+        if (amountSuggestions) {
+            amountSuggestions.innerHTML = ''; // Clear old
+            
+            if (valueNum > 0 && valueNum < 10000000000) {
+                 // Generate suggestions: 000, 0000, 00000 if meaningful
+                 // Logic: User types '15' -> Suggest '15.000', '150.000', '1.500.000'
+                 
+                 // Generate candidates using Set to deduplicate
+                 const base = valueStr;
+                 const candidates = new Set();
+                 
+                 // Prioritize common multiples: 000 (k), 0000 (10k), 00000 (100k), 000000 (m)
+                 candidates.add(parseInt(base + '000'));
+                 candidates.add(parseInt(base + '0000'));
+                 candidates.add(parseInt(base + '00000'));
+                 candidates.add(parseInt(base + '000000'));
+
+                 // Convert to array, filter valid, and take top 3
+                 const finalSuggestions = Array.from(candidates)
+                    .filter(s => s !== valueNum && s < 100000000000)
+                    .slice(0, 3); // Max 3 suggestions
+
+                 // Render Suggestions
+                 finalSuggestions.forEach(s => {
+                     // Check specific condition to avoid duplicates or redundant (e.g. if user typed 15000, don't suggest 15000 again?)
+                     // If suggested value equals typed value, skip?
+                     if (s === valueNum) return;
+                     
+                     // Format suggestion
+                     const sFormatted = s.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                     
+                     const chip = document.createElement('div');
+                     chip.className = 'suggestion-chip';
+                     chip.innerText = sFormatted;
+                     
+                     chip.onclick = () => {
+                         // Apply suggestion
+                         amountInput.value = sFormatted;
+                         amountInput.focus(); // Keep focus
+                         amountSuggestions.innerHTML = ''; // Clear suggestions after selection
+                     };
+                     
+                     amountSuggestions.appendChild(chip);
+                 });
+            }
+        }
     });
+    
+    // Hide suggestions on blur (delayed to allow click) or simply clear when empty
+    // Better: hide when user clears input
 }
 
 fabAdd.addEventListener('click', () => {
