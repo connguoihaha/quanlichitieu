@@ -1,29 +1,28 @@
 export function isSameDay(d1, d2) {
-    return d1.getFullYear() === d2.getFullYear() &&
+    return d1.getDate() === d2.getDate() &&
            d1.getMonth() === d2.getMonth() &&
-           d1.getDate() === d2.getDate();
+           d1.getFullYear() === d2.getFullYear();
 }
 
-export function isSameWeek(d1, d2) {
-    const t1 = new Date(d1);
-    const t2 = new Date(d2);
+export function isSameWeek(date1, date2) {
+    const d1 = new Date(date1);
+    const d2 = new Date(date2);
     
-    t1.setHours(0,0,0,0);
-    t2.setHours(0,0,0,0);
+    d1.setHours(0, 0, 0, 0);
+    d2.setHours(0, 0, 0, 0);
     
-    const day2 = t2.getDay() || 7; 
-    const startOfWeek = new Date(t2);
-    startOfWeek.setDate(t2.getDate() - day2 + 1);
+    const day1 = d1.getDay() || 7;
+    const day2 = d2.getDay() || 7;
     
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    d1.setDate(d1.getDate() - day1 + 1);
+    d2.setDate(d2.getDate() - day2 + 1);
     
-    return t1 >= startOfWeek && t1 <= endOfWeek;
+    return isSameDay(d1, d2);
 }
 
 export function isSameMonth(d1, d2) {
-    return d1.getFullYear() === d2.getFullYear() &&
-           d1.getMonth() === d2.getMonth();
+    return d1.getMonth() === d2.getMonth() &&
+           d1.getFullYear() === d2.getFullYear();
 }
 
 export function isSameYear(d1, d2) {
