@@ -126,20 +126,36 @@ export function initListeners() {
             };
 
             try {
-                if (state.ui.editingTransactionId) {
-                    await storage.updateTransactionInDb(state.ui.editingTransactionId, txData);
-                    showToast("Đã cập nhật chi tiêu!");
-                } else {
-                    await storage.addTransactionToDb(txData);
-                    showToast("Đã thêm chi tiêu thành công!");
+                const savePromise = state.ui.editingTransactionId 
+                    ? storage.updateTransactionInDb(state.ui.editingTransactionId, txData)
+                    : storage.addTransactionToDb(txData);
+
+                // If offline, don't wait for promise (optimistic UI)
+                if (!navigator.onLine) {
+                    showToast("Đã lưu (Offline mode)");
+                    modalTransaction.classList.remove('active');
+                    txForm.reset();
+                    btnSaveTx.disabled = false;
+                    btnSaveTx.innerText = 'Lưu';
+                    // We let the promise run in background
+                    savePromise.catch(err => showToast("Lỗi lưu offline!", "error"));
+                    return;
                 }
+
+                await savePromise;
+                
+                if (state.ui.editingTransactionId) showToast("Đã cập nhật chi tiêu!");
+                else showToast("Đã thêm chi tiêu thành công!");
+                
                 modalTransaction.classList.remove('active');
                 txForm.reset();
             } catch (err) {
                 showToast("Lỗi lưu dữ liệu!", "error");
             } finally {
-                btnSaveTx.disabled = false;
-                btnSaveTx.innerText = 'Lưu';
+                if (navigator.onLine) {
+                    btnSaveTx.disabled = false;
+                    btnSaveTx.innerText = 'Lưu';
+                }
             }
         });
     }
@@ -152,6 +168,10 @@ export function initListeners() {
     
     if (btnDelete) {
         btnDelete.addEventListener('click', () => {
+            if (!navigator.onLine) {
+                showToast("Không thể xóa khi Offline!", "error");
+                return;
+            }
             if (state.ui.editingTransactionId) modalConfirm.classList.add('active');
         });
     }
@@ -493,22 +513,46 @@ function handleSwipe() {
         const card = document.querySelector('.balance-card');
         
         if (card) {
+            // Check if future swipe
+            const nextDate = new Date(state.filter.viewDate);
+            if (state.filter.current === 'day') {
+                nextDate.setDate(nextDate.getDate() + direction);
+            } else if (state.filter.current === 'week') {
+                nextDate.setDate(nextDate.getDate() + (direction * 7));
+            } else if (state.filter.current === 'month') {
+                nextDate.setMonth(nextDate.getMonth() + direction);
+            } else if (state.filter.current === 'year') {
+                nextDate.setFullYear(nextDate.getFullYear() + direction);
+            }
+
+            // Prevent future
+            const today = new Date();
+            // Reset time part for accurate comparison
+            const compareNext = new Date(nextDate);
+            const compareToday = new Date(today);
+            compareNext.setHours(0,0,0,0);
+            compareToday.setHours(0,0,0,0);
+
+            if (direction === 1 && compareNext > compareToday) {
+                 return; 
+            }
+
             card.classList.remove('swipe-effect-next', 'swipe-effect-prev');
             void card.offsetWidth; 
             card.classList.add(direction === 1 ? 'swipe-effect-next' : 'swipe-effect-prev');
             setTimeout(() => card.classList.remove('swipe-effect-next', 'swipe-effect-prev'), 300);
+        
+            if (state.filter.current === 'day') {
+                state.filter.viewDate.setDate(state.filter.viewDate.getDate() + direction);
+            } else if (state.filter.current === 'week') {
+                state.filter.viewDate.setDate(state.filter.viewDate.getDate() + (direction * 7));
+            } else if (state.filter.current === 'month') {
+                state.filter.viewDate.setMonth(state.filter.viewDate.getMonth() + direction);
+            } else if (state.filter.current === 'year') {
+                state.filter.viewDate.setFullYear(state.filter.viewDate.getFullYear() + direction);
+            }
+            render.renderTransactions();
         }
-
-        if (state.filter.current === 'day') {
-            state.filter.viewDate.setDate(state.filter.viewDate.getDate() + direction);
-        } else if (state.filter.current === 'week') {
-            state.filter.viewDate.setDate(state.filter.viewDate.getDate() + (direction * 7));
-        } else if (state.filter.current === 'month') {
-            state.filter.viewDate.setMonth(state.filter.viewDate.getMonth() + direction);
-        } else if (state.filter.current === 'year') {
-            state.filter.viewDate.setFullYear(state.filter.viewDate.getFullYear() + direction);
-        }
-        render.renderTransactions();
     }
 }
 

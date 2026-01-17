@@ -34,11 +34,12 @@ export function renderTransactions() {
     
     let label = '';
     if (state.filter.current === 'day') {
-        if (isSameDay(now, today)) label = `Hôm nay, ${now.getDate()}/${now.getMonth()+1}`;
+        const weekday = now.toLocaleDateString('vi-VN', { weekday: 'long' });
+        if (isSameDay(now, today)) label = `Hôm nay, ${weekday}, ${now.getDate()}/${now.getMonth()+1}`;
         else {
             const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
-            if(isSameDay(now, yesterday)) label = `Hôm qua, ${now.getDate()}/${now.getMonth()+1}`;
-            else label = `${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
+            if(isSameDay(now, yesterday)) label = `Hôm qua, ${weekday}, ${now.getDate()}/${now.getMonth()+1}`;
+            else label = `${weekday}, ${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
         }
     }
     else if (state.filter.current === 'week') {
@@ -62,8 +63,15 @@ export function renderTransactions() {
     else if (state.filter.current === 'all') label = `Toàn bộ thời gian`;
     else if (state.filter.current === 'search') label = `Kết quả tìm kiếm`;
     
-    if(filterLabel) filterLabel.textContent = label;
-    if(currentMonthLabel) currentMonthLabel.textContent = label;
+    // Add Offline Indicator - REMOVED as requested
+    /*
+    if (!navigator.onLine) {
+        label += ' <span style="font-size:0.8em; color:#ff9800; margin-left:8px;"><i class="fa-solid fa-wifi-slash"></i> Offline</span>';
+    }
+    */
+    
+    if(filterLabel) filterLabel.innerHTML = label; // Use innerHTML because label might contain HTML now
+    if(currentMonthLabel) currentMonthLabel.innerHTML = label; // Use innerHTML because label might contain HTML now
 
     // List
     if(transactionsListEl) {
@@ -138,13 +146,18 @@ export function renderTransactions() {
                 const iconClass = categoryIcons[t.category] || categoryIcons['default'];
                 const timeStr = t.date.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'});
                 
+                let pendingHtml = '';
+                if (t.pending) {
+                    pendingHtml = `<span class="pending-badge" style="font-size:0.75em; padding: 2px 6px; border-radius: 4px; background: rgba(255, 193, 7, 0.2); color: #ffc107; margin-left:6px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-clock-rotate-left"></i> Chờ Sync</span>`;
+                }
+                
                 item.innerHTML = `
                     <div class="trans-icon">
                         <i class="fa-solid ${iconClass}"></i>
                     </div>
                     <div class="trans-details">
                         <span class="cat-name trans-note">${t.note || t.category}</span>
-                        <span class="trans-date">${t.category} • ${timeStr}</span>
+                        <span class="trans-date">${t.category} • ${timeStr} ${pendingHtml}</span>
                     </div>
                     <div class="trans-amount">
                         -${formatCurrency(t.amount)}
@@ -407,9 +420,17 @@ export function renderForecast() {
         <div class="analysis-card full-width forecast-card ${statusClass}">
             <div class="fc-header">
                 <div class="fc-icon"><i class="fa-solid ${statusIcon}"></i></div>
-                <div class="fc-info">
-                    <span class="fc-title">Dự báo cuối tháng</span>
+                <div class="fc-info" style="flex:1">
+                    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:2px;">
+                        <span class="fc-title">Dự báo cuối tháng</span>
+                        <span style="font-size:0.8rem; color:${result.confidence >= 70 ? '#4caf50' : (result.confidence >= 40 ? '#ff9800' : '#f44336')}; white-space:nowrap;">
+                            Độ chính xác: ${result.confidence}%
+                        </span>
+                    </div>
                     <span class="fc-amount">${formatCurrency(result.projectedTotal)}</span>
+                    <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
+                        Min: ${formatCurrency(result.projectedMin)} - Max: ${formatCurrency(result.projectedMax)}
+                    </div>
                 </div>
             </div>
             <div class="fc-message">${message}</div>
@@ -443,7 +464,7 @@ export function renderForecast() {
                  <b style="color:var(--text-light)">+${formatCurrency(result.expectedFixedSum - result.currentFixedPaid)}</b>
              </div>
             <div class="details-row" style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid rgba(255,255,255,0.1); justify-content:space-between; font-size:0.9rem;">
-                 <span>Tốc độ tiêu (${result.burnRateSource}):</span>
+                 <span>Tốc độ chi tiêu dự kiến:</span>
                  <b>${formatCurrency(result.dailyBurnRate)}/ngày</b>
             </div>
         </div>

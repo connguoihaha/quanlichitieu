@@ -16,7 +16,8 @@ export function listenToTransactions(onUpdate, onError) {
                  return {
                     id: doc.id,
                     ...d,
-                    date: d.date && d.date.toDate ? d.date.toDate() : (new Date(d.date) || new Date())
+                    date: d.date && d.date.toDate ? d.date.toDate() : (new Date(d.date) || new Date()),
+                    pending: doc.metadata.hasPendingWrites 
                  };
             });
             onUpdate(data, snapshot.metadata.fromCache);
