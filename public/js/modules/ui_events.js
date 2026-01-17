@@ -5,6 +5,9 @@ import * as storage from './storage.js';
 import { showToast } from '../utils.js';
 
 export function initListeners() {
+    // Initialize Swipe Modal Logic
+    initSwipeModal();
+    
     // 1. Initial Data Load
     storage.listenToTransactions((data, fromCache) => {
         setTransactions(data);
@@ -370,17 +373,25 @@ export function initListeners() {
     }
 
     // Modals Close Overlay
-    window.onclick = (e) => {
+    // Modals Close Overlay
+    const handleOutsideClick = (e) => {
         if (e.target.classList.contains('modal-overlay')) {
+            e.preventDefault(); // Prevent ghost clicks on touch
             e.target.classList.remove('active');
         }
     };
+
+    window.addEventListener('click', handleOutsideClick);
+    window.addEventListener('touchend', handleOutsideClick);
     
     document.querySelectorAll('.btn-close').forEach(btn => {
-        btn.addEventListener('click', () => {
+        const close = (e) => {
+            e.preventDefault();
             const modal = btn.closest('.modal-overlay');
             if (modal) modal.classList.remove('active');
-        });
+        };
+        btn.addEventListener('click', close);
+        btn.addEventListener('touchend', close);
     });
 
     // --- Search & Export ---
@@ -587,4 +598,49 @@ function openTransactionModal(tx = null) {
     }
     
     modalTransaction.classList.add('active');
+}
+
+function initSwipeModal() {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        let startY = 0;
+        let currentY = 0;
+        let isDragging = false;
+        let startScrollTop = 0;
+
+        modal.addEventListener('touchstart', (e) => {
+             startScrollTop = modal.scrollTop;
+             if (startScrollTop > 0) return;
+             startY = e.touches[0].clientY;
+             isDragging = true;
+             modal.style.transition = 'none';
+        }, {passive: true});
+
+        modal.addEventListener('touchmove', (e) => {
+             if (!isDragging) return;
+             currentY = e.touches[0].clientY;
+             const diff = currentY - startY;
+             if (diff > 0) {
+                 if (e.cancelable) e.preventDefault(); 
+                 modal.style.transform = `translateY(${diff}px)`;
+             }
+        }, {passive: false});
+
+        modal.addEventListener('touchend', (e) => {
+             if (!isDragging) return;
+             isDragging = false;
+             modal.style.transition = '';
+             
+             const diff = currentY - startY || 0;
+             if (diff > 120) {
+                 const overlay = modal.closest('.modal-overlay');
+                 if (overlay) overlay.classList.remove('active');
+                 modal.style.transform = ''; 
+             } else {
+                 modal.style.transform = '';
+             }
+             startY = 0;
+             currentY = 0;
+        });
+    });
 }
