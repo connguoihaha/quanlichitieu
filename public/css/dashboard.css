@@ -1,0 +1,64 @@
+/* Dashboard Layout */
+.dashboard-mid-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 600px) {
+    .dashboard-mid-grid {
+        grid-template-columns: 1fr; /* Stack on mobile */
+    }
+}
+
+.dashboard-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Calendar Card Adjustments */
+.calendar-card .heatmap-container {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+.heatmap-grid.compact {
+    gap: 4px;
+}
+
+.heatmap-grid.compact .heatmap-day {
+    font-size: 0.7rem;
+    border-radius: 6px;
+}
+
+/* Mini Nav Buttons */
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-icon-mini {
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: var(--text-muted);
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon-mini:hover {
+    background: rgba(255,255,255,0.2);
+    color: white;
+}

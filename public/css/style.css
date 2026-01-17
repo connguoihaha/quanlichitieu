@@ -350,24 +350,38 @@ body {
     opacity: 1;
 }
 
+/* Ensure Day Detail sits on top of Analysis Modal */
+#modal-day-detail {
+    z-index: 300;
+}
+
 .modal {
     width: 100%;
     max-width: 600px;
     border-radius: 24px 24px 0 0;
-    background: #1e1e24; /* Solid bg for modal to avoid messy transparency overlap */
+    background: #1e1e24;
     padding: 1.5rem;
-    transform: translateY(100%);
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    
+    /* Animation Start State */
+    transform: translateY(110%) scale(0.95);
+    opacity: 0.5;
+    
+    /* Modern spring-like smoothing */
+    transition: 
+        transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 0.3s ease-out;
+    will-change: transform, opacity;
 }
 
 .center-modal .modal {
     border-radius: 24px;
     margin: 1rem;
-    transform: scale(0.9);
+    transform: scale(0.9) translateY(20px);
 }
 
 .modal-overlay.active .modal {
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+    opacity: 1;
 }
 
 .center-modal.active .modal {
@@ -677,6 +691,33 @@ input[type="text"]:focus {
     font-weight: 500;
 }
 
+.trend-tag {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    margin-left: 4px;
+}
+
+.trend-tag.up {
+    color: #ef4565;
+    background: rgba(239, 69, 101, 0.1);
+}
+
+.trend-tag.down {
+    color: #2cb67d;
+    background: rgba(44, 182, 125, 0.1);
+}
+
+.trend-tag.neutral {
+    color: var(--text-muted);
+}
+
+.trend-tag.new {
+    color: #3da9fc;
+    background: rgba(61, 169, 252, 0.1);
+}
+
 .bd-amount {
     font-weight: 600;
     color: var(--text-main);
@@ -775,21 +816,59 @@ input[type="text"]:focus {
 
 /* Swipe Animations for Header */
 @keyframes swipeNextAni {
-    0% { transform: translateX(0); opacity: 1; }
-    40% { transform: translateX(-30px); opacity: 0; } /* Exit Left */
-    50% { transform: translateX(30px); opacity: 0; }  /* Reset to Right */
-    100% { transform: translateX(0); opacity: 1; }    /* Enter from Right */
+    0% { 
+        transform: translateX(0) scale(1); 
+        opacity: 1; 
+        filter: blur(0);
+    }
+    40% { 
+        transform: translateX(-50px) scale(0.95); 
+        opacity: 0; 
+        filter: blur(4px);
+    } 
+    /* Instant Flip Position */
+    41% { 
+        transform: translateX(50px) scale(0.95); 
+        opacity: 0; 
+        filter: blur(4px);
+    }
+    100% { 
+        transform: translateX(0) scale(1); 
+        opacity: 1; 
+        filter: blur(0);
+    }
 }
 
 @keyframes swipePrevAni {
-    0% { transform: translateX(0); opacity: 1; }
-    40% { transform: translateX(30px); opacity: 0; }  /* Exit Right */
-    50% { transform: translateX(-30px); opacity: 0; } /* Reset to Left */
-    100% { transform: translateX(0); opacity: 1; }    /* Enter from Left */
+    0% { 
+        transform: translateX(0) scale(1); 
+        opacity: 1; 
+        filter: blur(0);
+    }
+    40% { 
+        transform: translateX(50px) scale(0.95); 
+        opacity: 0; 
+        filter: blur(4px);
+    }
+    /* Instant Flip Position */
+    41% { 
+        transform: translateX(-50px) scale(0.95); 
+        opacity: 0; 
+        filter: blur(4px);
+    }
+    100% { 
+        transform: translateX(0) scale(1); 
+        opacity: 1; 
+        filter: blur(0);
+    }
 }
 
 .swipe-effect-next {
-    animation: swipeNextAni 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    animation: swipeNextAni 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.swipe-effect-prev {
+    animation: swipePrevAni 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 
@@ -839,8 +918,9 @@ input[type="text"]:focus {
     background: #1e1e24; /* Solid backing to prevent text overlap transparency issues */
     border: 1px solid var(--glass-border);
     border-radius: 12px;
+    border-radius: 12px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-    z-index: 100;
+    z-index: 150;
     opacity: 0;
     visibility: hidden;
     transform: translateY(-10px);
@@ -935,44 +1015,33 @@ input[type=number] {
 /* Amount Suggestions */
 .amount-suggestions {
     display: flex;
-    gap: 8px;
-    margin-top: 8px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: none; /* Hide scrollbar Firefox */
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+    flex-wrap: wrap; /* Wrap if too many, though we limit to 3 */
     justify-content: center;
-    position: absolute; /* Float below input */
-    top: 100%;
-    left: 0;
-    width: 100%;
-    z-index: 10;
-}
-.amount-suggestions::-webkit-scrollbar {
-    display: none; /* Hide scrollbar Chrome */
-}
-
-.amount-row {
-    position: relative; /* Context for absolute positioning of suggestions */
-    margin-bottom: 2.5rem; /* Make space for suggestions */
 }
 
 .suggestion-chip {
-    background: rgba(127, 90, 240, 0.15); /* Primary tint */
-    border: 1px solid rgba(127, 90, 240, 0.3);
-    color: var(--primary);
-    padding: 6px 12px;
-    border-radius: 16px;
-    font-size: 0.85rem;
+    background: var(--card-bg); /* Solid-ish base */
+    border: 1px solid var(--primary); /* Clear border */
+    color: var(--text-main);
+    padding: 0.6rem 1rem;
+    border-radius: 50px; /* Pillow shape */
+    font-size: 0.95rem; /* Larger font */
     font-weight: 500;
-    white-space: nowrap;
     cursor: pointer;
-    transition: all 0.2s ease;
-    animation: fadeIn 0.3s ease;
+    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .suggestion-chip:hover {
-    background: rgba(127, 90, 240, 0.25);
-    transform: translateY(-1px);
+    background: var(--primary);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px var(--primary-glow);
 }
 
 .suggestion-chip:active {
@@ -1049,7 +1118,7 @@ input[type=number] {
     width: 100%;
     background: var(--primary);
     border-radius: 4px 4px 0 0;
-    transition: all 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+    transition: height 0.5s ease-out, transform 0.2s, opacity 0.2s;
     min-height: 4px;
     opacity: 0.5;
     position: relative;
@@ -1067,7 +1136,7 @@ input[type=number] {
 }
 
 .chart-label {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     color: var(--text-muted);
     margin-top: 8px;
     text-align: center;
@@ -1075,7 +1144,7 @@ input[type=number] {
 }
 
 .chart-value {
-    font-size: 0.65rem;
+    font-size: 0.75rem;
     color: var(--text-main);
     margin-bottom: 4px;
     font-weight: 600;
@@ -1084,39 +1153,191 @@ input[type=number] {
 
 
 /* Modal Tabs */
+/* Modal Tabs - 2x2 Grid */
 .modal-tabs {
-    display: flex;
-    background: rgba(255,255,255,0.05);
-    border-radius: 12px;
-    padding: 4px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    background: transparent;
+    padding: 0;
     margin-bottom: 1.5rem;
 }
 
 .modal-tab {
-    flex: 1;
-    background: transparent;
-    border: none;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid transparent;
     color: var(--text-muted);
-    padding: 0.6rem;
-    border-radius: 10px;
+    padding: 0.8rem;
+    border-radius: 12px;
     font-size: 0.9rem;
     cursor: pointer;
     transition: all 0.2s;
     font-weight: 600;
+    text-align: center;
+}
+
+.modal-tab:hover {
+    background: rgba(255,255,255,0.1);
 }
 
 .modal-tab.active {
-    background: var(--card-bg); /* Use card-bg for contrast or just lighter glass */
-    background: rgba(255,255,255,0.1);
+    background: rgba(127, 90, 240, 0.15); /* Primary glow tint */
+    border-color: var(--primary);
     color: var(--text-main);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+@keyframes tabSlideUp {
+    0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+        filter: blur(4px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+    }
 }
 
 .tab-content {
     display: none;
-    animation: fadeIn 0.3s ease;
 }
 
 .tab-content.active {
     display: block;
+    animation: tabSlideUp 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
+
+/* Forecast Styles */
+.forecast-card.neutral { border-color: var(--glass-border); }
+.forecast-card.danger { border-color: rgba(239, 69, 101, 0.5); background: rgba(239, 69, 101, 0.05); }
+.forecast-card.success { border-color: rgba(44, 182, 125, 0.5); background: rgba(44, 182, 125, 0.05); }
+
+.fc-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.fc-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+.forecast-card.danger .fc-icon { color: var(--danger); background: rgba(239, 69, 101, 0.2); }
+.forecast-card.success .fc-icon { color: var(--secondary); background: rgba(44, 182, 125, 0.2); }
+
+.fc-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.fc-title {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.fc-amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.fc-message {
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+    color: var(--text-muted);
+}
+
+.forecast-card.danger .fc-message b { color: var(--danger); }
+.forecast-card.success .fc-message b { color: var(--secondary); }
+
+/* Forecast Bar */
+.forecast-bar-container {
+    position: relative;
+    padding-top: 10px;
+}
+
+.fb-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.fb-track {
+    height: 12px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 6px;
+    position: relative;
+    overflow: visible; /* Allows marker to stick out if needed */
+}
+
+.fb-fill {
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    border-radius: 6px;
+    transition: width 1s ease-out;
+}
+
+.fb-fill.current {
+    background: var(--primary);
+    z-index: 2;
+}
+
+.fb-fill.projected {
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(127, 90, 240, 0.3),
+        rgba(127, 90, 240, 0.3) 10px,
+        rgba(127, 90, 240, 0.1) 10px,
+        rgba(127, 90, 240, 0.1) 20px
+    );
+    z-index: 1;
+}
+
+.fb-marker {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 2px;
+    background: #FFD803; /* Yellow marker for Average */
+    z-index: 3;
+    /* Dashed look provided by opacity or simple line */
+    box-shadow: 0 0 5px rgba(255, 216, 3, 0.5);
+}
+
+.fb-legend {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 10px;
+    color: var(--text-muted);
+}
+
+.fb-legend small {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.dot.current { background: var(--primary); }
+.dot.projected { background: rgba(127, 90, 240, 0.3); }
+

@@ -17,6 +17,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/heatmap.css">
+    <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
     <div class="app-container">
@@ -139,7 +141,38 @@
         </div>
     </div>
 
-    <!-- Confirmation Modal -->
+    <!-- Day Detail Bottom Sheet -->
+    <div class="modal-overlay" id="modal-day-detail">
+        <div class="modal glass-panel slide-up" style="max-height: 70vh;">
+            <div class="modal-header" style="margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 1rem;">
+                <div>
+                    <h3 id="dd-date" style="font-size:1.1rem; color:var(--text-muted)">15/01/2026</h3>
+                    <div id="dd-total" style="font-size:1.8rem; font-weight:700; color:var(--text-main)">0đ</div>
+                </div>
+                <button class="btn-close" id="close-day-detail"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Comparison Badge -->
+                <div id="dd-comparison" class="comparison-badge" style="display:inline-flex; margin-bottom:1.5rem; font-size:0.9rem; padding:6px 12px;">
+                    <!-- Injected via JS -->
+                </div>
+
+                <!-- Top Categories -->
+                <div class="analysis-section">
+                    <h4 class="section-title" style="margin-bottom:0.8rem">Top Danh Mục</h4>
+                    <div id="dd-categories" class="breakdown-list">
+                        <!-- Injected via JS -->
+                    </div>
+                </div>
+
+                <!-- Insight Text -->
+                <div id="dd-insight" style="background: rgba(127, 90, 240, 0.1); color: #b8c1ec; padding: 1rem; border-radius: 12px; font-size: 0.9rem; margin-top:1rem; border: 1px solid rgba(127, 90, 240, 0.2);">
+                    <!-- Injected via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="modal-overlay center-modal" id="modal-confirm">
         <div class="modal">
             <div class="modal-header">
@@ -186,9 +219,12 @@
             <div class="modal-tabs">
                 <button class="modal-tab active" data-tab="overview">Tổng quan</button>
                 <button class="modal-tab" data-tab="trends">Xu hướng</button>
+                <button class="modal-tab" data-tab="forecast">Dự báo</button>
+                <button class="modal-tab" data-tab="calendar">Lịch chi tiêu</button>
             </div>
 
             <div class="modal-body">
+                <!-- Tab 1: Overview -->
                 <div id="tab-overview" class="tab-content active">
                     <div id="analysis-overview" class="analysis-grid"></div>
                     <div class="analysis-section">
@@ -197,6 +233,7 @@
                     </div>
                 </div>
 
+                <!-- Tab 2: Trends -->
                 <div id="tab-trends" class="tab-content">
                     <div class="analysis-section">
                         <div class="section-header" style="margin-bottom: 0.5rem;">
@@ -218,6 +255,47 @@
                         </div>
 
                         <div id="trend-chart-container" class="simple-bar-chart"></div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Forecast -->
+                <div id="tab-forecast" class="tab-content">
+                    <div id="forecast-container" class="analysis-section">
+                        <!-- Forecast data will be injected here -->
+                    </div>
+                </div>
+
+                <!-- Tab 4: Calendar -->
+                <div id="tab-calendar" class="tab-content">
+                    <div class="analysis-section">
+                        <div class="section-header" style="margin-bottom: 1rem; justify-content: space-between;">
+                            <h4 class="section-title" style="margin:0">Mức độ chi tiêu</h4>
+                            <div class="calendar-nav">
+                                <button class="btn-icon-mini" id="cal-prev"><i class="fa-solid fa-chevron-left"></i></button>
+                                <span id="heatmap-month-label" style="font-size: 0.9rem; color: var(--text-light); min-width:80px; text-align:center;">-</span>
+                                <button class="btn-icon-mini" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                        
+                        <div class="heatmap-container">
+                            <div class="heatmap-weekdays">
+                                <div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div><div>CN</div>
+                            </div>
+                            <div id="heatmap-grid" class="heatmap-grid">
+                                <!-- Grid items injected via JS -->
+                            </div>
+                            <div class="heatmap-legend">
+                                <span>Ít</span>
+                                <div class="legend-scale">
+                                    <div class="scale-item level-0"></div>
+                                    <div class="scale-item level-1"></div>
+                                    <div class="scale-item level-2"></div>
+                                    <div class="scale-item level-3"></div>
+                                    <div class="scale-item level-4"></div>
+                                </div>
+                                <span>Nhiều</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

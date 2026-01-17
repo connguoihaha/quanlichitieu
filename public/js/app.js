@@ -185,15 +185,25 @@ function isSameDay(d1, d2) {
 }
 
 function isSameWeek(d1, d2) {
-    const oneJan = new Date(d1.getFullYear(), 0, 1);
-    const numberOfDays = Math.floor((d1 - oneJan) / (24 * 60 * 60 * 1000));
-    const result1 = Math.ceil((d1.getDay() + 1 + numberOfDays) / 7);
-
-    const oneJan2 = new Date(d2.getFullYear(), 0, 1);
-    const numberOfDays2 = Math.floor((d2 - oneJan2) / (24 * 60 * 60 * 1000));
-    const result2 = Math.ceil((d2.getDay() + 1 + numberOfDays2) / 7);
+    // Clone to avoid mutating original dates
+    const t1 = new Date(d1);
+    const t2 = new Date(d2);
     
-    return d1.getFullYear() === d2.getFullYear() && result1 === result2;
+    // Normalize to Midnight for safety (ignore time)
+    t1.setHours(0,0,0,0);
+    t2.setHours(0,0,0,0);
+    
+    // Adjust t2 to be the Monday of its week
+    const day2 = t2.getDay() || 7; // 1 (Mon) ... 7 (Sun)
+    const startOfWeek = new Date(t2);
+    startOfWeek.setDate(t2.getDate() - day2 + 1);
+    
+    // End of week is Start + 6 days
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    
+    // Check if t1 is in [Start, End]
+    return t1 >= startOfWeek && t1 <= endOfWeek;
 }
 
 function isSameMonth(d1, d2) {
@@ -348,7 +358,511 @@ function renderAnalysis() {
     renderAnalysisOverview();
     renderTrendChart();
     renderCategoryBreakdown();
+    renderForecast();
+    renderCalendarHeatmap();
 }
+
+const LUMP_SUM_CATEGORIES = ['Tiền Nhà', 'Tiết Kiệm']; // Re-added bills
+
+function calculateMedian(values) {
+    if (values.length === 0) return 0;
+    
+    // Sort numbers
+    const sorted = [...values].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+
+    if (sorted.length % 2 === 0) {
+        return (sorted[middle - 1] + sorted[middle]) / 2;
+    }
+    return sorted[middle];
+}
+
+let currentHeatmapDate = new Date();
+
+function changeHeatmapMonth(offset) {
+    currentHeatmapDate.setMonth(currentHeatmapDate.getMonth() + offset);
+    renderCalendarHeatmap();
+}
+
+function showDayDetail(day, month, year, amount, upperBound) {
+    const modal = document.getElementById('modal-day-detail');
+    if (!modal) return;
+
+    // Filter transactions for this specific day
+    const dailyTx = transactions.filter(t => 
+        t.date && t.date.getDate() === day && t.date.getMonth() === month && t.date.getFullYear() === year
+    );
+
+    // 1. Header
+    document.getElementById('dd-date').innerText = `Ngày ${day} tháng ${month + 1}`;
+    document.getElementById('dd-total').innerText = formatCurrency(amount);
+
+    // 2. Comparison (High/Low)
+    const compEl = document.getElementById('dd-comparison');
+    if (amount === 0) {
+        compEl.className = 'comparison-badge down';
+        compEl.innerHTML = '<i class="fa-solid fa-piggy-bank"></i> Tuyệt vời! Không tiêu gì cả.';
+    } else {
+        const ratio = upperBound > 0 ? (amount / upperBound) : 0;
+        if (ratio >= 1.0) {
+            compEl.className = 'comparison-badge up';
+            compEl.innerHTML = `<i class="fa-solid fa-fire"></i> Cao báo động (Top 10% tháng)`;
+        } else if (ratio > 0.6) {
+            compEl.className = 'comparison-badge up';
+            compEl.innerHTML = `<i class="fa-solid fa-arrow-trend-up"></i> Khá cao so với thường lệ`;
+        } else {
+            compEl.className = 'comparison-badge down';
+            compEl.innerHTML = `<i class="fa-solid fa-check"></i> Chi tiêu trong mức ổn định`;
+        }
+    }
+
+    // 3. Top Categories
+    const catList = document.getElementById('dd-categories');
+    catList.innerHTML = '';
+    
+    if (dailyTx.length > 0) {
+        // Aggregation
+        const groups = {};
+        dailyTx.forEach(t => {
+            groups[t.category] = (groups[t.category] || 0) + parseFloat(t.amount);
+        });
+        
+        // Sort & Render Top 3
+        Object.entries(groups)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 3)
+            .forEach(([cat, amt]) => {
+                const percent = (amt / amount) * 100;
+                
+                const item = document.createElement('div');
+                item.className = 'breakdown-item';
+                item.innerHTML = `
+                    <div class="bd-header">
+                        <div class="bd-cat">
+                           <span>${cat}</span>
+                        </div>
+                        <span class="bd-amount">${formatCurrency(amt)}</span>
+                    </div>
+                    <div class="progress-track" style="height:4px">
+                        <div class="progress-fill" style="width: ${percent}%; opacity:0.8"></div>
+                    </div>
+                `;
+                catList.appendChild(item);
+            });
+    } else {
+        catList.innerHTML = '<div style="color:var(--text-muted); font-size:0.9rem; text-align:center; padding:1rem;">Không có giao dịch nào.</div>';
+    }
+
+    // 4. Insight Short
+    const insightEl = document.getElementById('dd-insight');
+    if (amount === 0) {
+        insightEl.innerText = "Duy trì những ngày 'No Spend' thế này sẽ giúp bạn tiết kiệm đáng kể!";
+    } else if (dailyTx.length > 3) {
+        insightEl.innerText = `Bạn đã thực hiện ${dailyTx.length} giao dịch hôm nay. Cẩn thận các khoản chi lặt vặt cộng dồn!`;
+    } else {
+         // Check if mainly fixed cost
+         const hasFixed = dailyTx.some(t => LUMP_SUM_CATEGORIES.includes(t.category));
+         if (hasFixed) insightEl.innerText = "Chủ yếu là các khoản định phí lớn. Không đáng lo nếu đây là ngày chi trả định kỳ.";
+         else insightEl.innerText = "Chi tiêu rải rác. Hãy xem xét lại các danh mục chiếm tỷ trọng lớn.";
+    }
+
+    modal.classList.add('active');
+}
+
+// Ensure close button and overlay click works
+document.addEventListener('DOMContentLoaded', () => {
+    const modalDD = document.getElementById('modal-day-detail');
+    const btnCloseDD = document.getElementById('close-day-detail');
+    
+    if (modalDD) {
+        if (btnCloseDD) {
+            btnCloseDD.addEventListener('click', () => {
+                modalDD.classList.remove('active');
+            });
+        }
+        
+        // Close on overlay click
+        modalDD.addEventListener('click', (e) => {
+            if (e.target === modalDD) {
+                modalDD.classList.remove('active');
+            }
+        });
+    }
+});
+
+
+function renderCalendarHeatmap() {
+    const gridEl = document.getElementById('heatmap-grid');
+    const labelEl = document.getElementById('heatmap-month-label');
+    
+    // Bind buttons if not already (simple check, or re-bind safe)
+    const btnPrev = document.getElementById('cal-prev');
+    const btnNext = document.getElementById('cal-next');
+    
+    if (btnPrev && !btnPrev.hasAttribute('onclick')) {
+         btnPrev.onclick = () => changeHeatmapMonth(-1);
+         btnNext.onclick = () => changeHeatmapMonth(1);
+    }
+    
+    if (!gridEl) return;
+    
+    gridEl.innerHTML = '';
+    
+    const targetDate = currentHeatmapDate; 
+    const year = targetDate.getFullYear();
+    const month = targetDate.getMonth(); // 0-11
+    
+    if (labelEl) labelEl.innerText = `Tháng ${month + 1}/${year}`;
+    
+    // 2. Aggregate Data
+    const dailyTotals = {};
+    const amounts = []; // For percentile calculation
+    
+    transactions.forEach(t => {
+        if (t.date && t.date.getMonth() === month && t.date.getFullYear() === year) {
+            const day = t.date.getDate();
+            dailyTotals[day] = (dailyTotals[day] || 0) + (parseFloat(t.amount) || 0);
+        }
+    });
+
+    // Collect non-zero amounts for robust scaling
+    Object.values(dailyTotals).forEach(v => {
+        if (v > 0) amounts.push(v);
+    });
+
+    // 3. Determine Scale (Smart Upper Bound P90)
+    let upperBound = 0;
+    if (amounts.length > 0) {
+        amounts.sort((a, b) => a - b);
+        const p90Index = Math.floor(amounts.length * 0.9);
+        upperBound = amounts[p90Index];
+        if (upperBound === 0) upperBound = amounts[amounts.length - 1];
+    }
+    
+    // 3. Grid Logic
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayObj = new Date(year, month, 1);
+    let startDayOfWeek = firstDayObj.getDay(); // 0 (Sun) - 6 (Sat)
+    
+    // Convert to Monday Start
+    let offset = (startDayOfWeek + 6) % 7;
+    
+    // Render Empty Cells (Offset)
+    for (let i = 0; i < offset; i++) {
+        const div = document.createElement('div');
+        div.className = 'heatmap-day empty';
+        gridEl.appendChild(div);
+    }
+    
+    // Render Days
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+        const amount = dailyTotals[day] || 0;
+        const div = document.createElement('div');
+        
+        let level = 0;
+        if (amount > 0) {
+            if (upperBound === 0) {
+                level = 1; 
+            } else {
+                const ratio = amount / upperBound;
+                if (ratio >= 1.0) level = 4;
+                else if (ratio > 0.6) level = 3; 
+                else if (ratio > 0.3) level = 2; 
+                else level = 1; 
+            }
+        }
+        
+        const cellDate = new Date(year, month, day);
+        const isFuture = cellDate > today;
+        const isToday = cellDate.getTime() === today.getTime();
+
+        let extraClass = '';
+        if (isToday) extraClass = 'today';
+        if (isFuture) extraClass += ' future';
+        
+        div.className = `heatmap-day level-${level} ${extraClass}`;
+        
+        if (isFuture) {
+            div.title = `${day}/${month+1}: Chưa đến`;
+        } else if (amount === 0) {
+            div.title = `${day}/${month+1}: Không chi tiêu`;
+             // Add onclick for zero spend days too (to show "No Spend" insight)
+             div.onclick = () => showDayDetail(day, month, year, amount, upperBound);
+        } else {
+            div.title = `${day}/${month+1}: ${formatCurrency(amount)}`;
+            div.onclick = () => showDayDetail(day, month, year, amount, upperBound);
+        }
+        
+        div.innerHTML = `<span class="day-num">${day}</span>`;
+        gridEl.appendChild(div);
+    }
+}
+
+function renderForecast() {
+    const container = document.getElementById('forecast-container');
+    if (!container) return;
+    
+    // 1. Data Setup (Current Month)
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const daysPassed = now.getDate();
+    const daysRemaining = daysInMonth - daysPassed;
+    
+    // Filter Current Month Transactions
+    const currentMonthTx = transactions.filter(t => 
+        t.date && t.date.getMonth() === currentMonth && t.date.getFullYear() === currentYear
+    );
+    const currentTotal = currentMonthTx.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+    
+    // 2. Hybrid Forecasting Logic
+    
+    // Step A: Calculate Median History for Lump Sum Categories (Last 6 Months for better stability)
+    const historicalFixedData = {}; // { 'Tiền Nhà': [5tr, 5tr, 5tr], ... }
+    
+    // Loop back 6 months
+    for (let i = 1; i <= 6; i++) {
+        const d = new Date(currentYear, currentMonth - i, 1);
+        
+        // Get transactions for that past month
+        const mTx = transactions.filter(t => 
+            t.date && t.date.getMonth() === d.getMonth() && t.date.getFullYear() === d.getFullYear()
+        );
+        
+        if (mTx.length > 0) {
+            // Group by category
+            const catSums = {};
+            mTx.forEach(t => {
+                if (LUMP_SUM_CATEGORIES.includes(t.category)) {
+                    catSums[t.category] = (catSums[t.category] || 0) + (parseFloat(t.amount) || 0);
+                }
+            });
+            
+            // Push to history
+            Object.keys(catSums).forEach(cat => {
+                if (!historicalFixedData[cat]) historicalFixedData[cat] = [];
+                historicalFixedData[cat].push(catSums[cat]);
+            });
+        }
+    }
+    
+    // Calculate Medians
+    const medianFixedCosts = {}; 
+    Object.keys(historicalFixedData).forEach(cat => {
+        medianFixedCosts[cat] = calculateMedian(historicalFixedData[cat]);
+    });
+
+    // Baseline Average (Total) for comparison
+    let baselineTotal = 0;
+    let baselineCount = 0;
+    for (let i = 1; i <= 3; i++) {
+        const d = new Date(currentYear, currentMonth - i, 1);
+        const mSum = transactions
+            .filter(t => t.date && t.date.getMonth() === d.getMonth() && t.date.getFullYear() === d.getFullYear())
+            .reduce((s,t) => s + (parseFloat(t.amount)||0), 0);
+        if(mSum > 0) {
+            baselineTotal += mSum;
+            baselineCount++;
+        }
+    }
+    const averageTotal = baselineCount > 0 ? (baselineTotal / baselineCount) : 0;
+
+
+    // Step B: Calculate Projected Variable Spending (Smart Burn Rate)
+    // Identify current variable spending (Month to Date)
+    let currentVariableTotal = 0;
+    currentMonthTx.forEach(t => {
+        if (!LUMP_SUM_CATEGORIES.includes(t.category)) {
+            currentVariableTotal += (parseFloat(t.amount) || 0);
+        }
+    });
+
+    // Strategy: Use "Rolling 7 Days" Average for Burn Rate
+    // 1. Get transactions from last 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0,0,0,0);
+    
+    const last7DaysTx = transactions.filter(t => {
+        const tDate = t.date; // Object
+        return tDate >= sevenDaysAgo && tDate <= new Date() && !LUMP_SUM_CATEGORIES.includes(t.category);
+    });
+
+    let last7DaysTotal = last7DaysTx.reduce((sum, t) => sum + (parseFloat(t.amount)||0), 0);
+    
+    let dailyBurnRate = 0;
+    let burnRateSource = '7 ngày gần nhất';
+    
+    if (transactions.length > 0) {
+        const oldestTx = transactions[transactions.length - 1]; // Sorted desc usually? logic below assumes existence
+        // Actually app.js data is sorted desc in `renderTransactions` but `transactions` array order depends on snapshot
+        // Snapshot order is orderBy date desc. So [0] is newest. [last] is oldest.
+        // Let's assume transactions is safe.
+        
+        // Find actual oldest for safety
+        let minDate = new Date();
+        if (transactions.length > 0) {
+             const dates = transactions.map(t => t.date);
+             minDate = new Date(Math.min(...dates));
+        }
+
+        const dataAgeDays = (new Date() - minDate) / (1000 * 60 * 60 * 24);
+        
+        if (dataAgeDays < 7 && daysPassed > 0) {
+            // New user (< 1 week), use Month Average
+            dailyBurnRate = currentVariableTotal / daysPassed;
+            burnRateSource = 'trung bình tháng';
+        } else {
+            // Established user, use 7-Day Rolling with Smart Divisor
+            // Count distinct active days in the last 7 days window
+            const activeDays = new Set(last7DaysTx.map(t => t.date.toDateString())).size;
+            
+            // Formula: last7DaysTotal / max(activeDays, 3)
+            // This prevents "0 spending days" from dragging down the average too much (conservative forecast)
+            // And prevents "1 day spike" from blowing up the average (min divisor 3)
+            const divisor = Math.max(activeDays, 3);
+            dailyBurnRate = divisor > 0 ? (last7DaysTotal / divisor) : 0;
+        }
+    } else {
+        dailyBurnRate = 0;
+    }
+    
+    let projectedVariable = (dailyBurnRate * daysRemaining); 
+    
+    
+    // Step C: Calculate Projected Fixed Spending (Median + Logic)
+    let projectedFixedTotal = 0;
+    let pendingFixedItems = []; 
+
+    // Strictly strictly forecast only for currently defined LUMP_SUM_CATEGORIES
+    // Do NOT merge with historical keys to avoid zombie categories or double counting if logic changes
+    const targetFixedCats = LUMP_SUM_CATEGORIES;
+    
+    let expectedFixedSum = 0;
+    
+    targetFixedCats.forEach(cat => {
+         const currentPaid = currentMonthTx.filter(t => t.category === cat).reduce((s,t) => s + t.amount, 0);
+         // Get median from history, or 0 if no history
+         const medianVal = medianFixedCosts[cat] || 0;
+         
+         if (medianVal > 0) {
+             // Logic: If currentPaid is significantly less than Median (e.g. < 90%), assume remainder needed
+             // If currentPaid >= 90% Median, assume Done
+             
+             if (currentPaid >= (medianVal * 0.9)) {
+                 // Counts as Paid
+                 expectedFixedSum += currentPaid; 
+             } else {
+                 // Not Paid / Partially Paid -> Expect to reach Median
+                 expectedFixedSum += Math.max(currentPaid, medianVal); 
+                 
+                 // Pending list Logic
+                 if (currentPaid < (medianVal * 0.1)) {
+                     // Only warn if almost nothing paid
+                     pendingFixedItems.push({ cat, amount: medianVal });
+                 }
+             }
+         } else {
+             // No history? Trust current. 
+             // If it's 0, we add 0. If they paid, we add paid.
+             expectedFixedSum += currentPaid;
+         }
+    });
+
+    // Final Projection Calculation
+    // Total = Current Variable (Paid) + Projected Variable (Future) + Expected Fixed (Paid + Future Remainder)
+    
+    // Note regarding Double Counting:
+    // currentVariableTotal is strictly Non-LumpSum transactions.
+    // expectedFixedSum is strictly LumpSum transactions (Actual + Predicted Remainder).
+    // They are mutually exclusive sets of categories. Safe to add.
+    
+    let projectedTotal = currentVariableTotal + projectedVariable + expectedFixedSum;
+
+    // Sanity
+    if (projectedTotal < currentTotal) projectedTotal = currentTotal;
+
+    
+    // 4. Analysis Message
+    let statusClass = 'neutral';
+
+    let statusIcon = 'fa-scale-balanced';
+    let message = 'Chi tiêu đang ở mức ổn định.';
+    
+    const diffPercent = averageTotal > 0 ? ((projectedTotal - averageTotal) / averageTotal * 100) : 0;
+    
+    if (diffPercent > 10) {
+        statusClass = 'danger';
+        statusIcon = 'fa-triangle-exclamation';
+        message = `Dự kiến cao hơn TB <b>${diffPercent.toFixed(0)}%</b>`;
+    } else if (diffPercent < -10) {
+        statusClass = 'success';
+        statusIcon = 'fa-piggy-bank';
+        message = `Dự kiến tiết kiệm <b>${Math.abs(diffPercent).toFixed(0)}%</b>`;
+    }
+
+    if (pendingFixedItems.length > 0) {
+        const names = pendingFixedItems.map(i => i.cat).join(', ');
+        message += `<div style="font-size:0.8rem; margin-top:4px; opacity:0.8; font-weight:normal">Chưa đóng: ${names}</div>`;
+    }
+    
+    // 5. Render UI
+    const progressLimit = Math.max(projectedTotal, averageTotal * 1.25) || projectedTotal || 100; 
+    const currentWidth = (currentTotal / progressLimit) * 100;
+    const projectedWidth = ((projectedTotal - currentTotal) / progressLimit) * 100; 
+    const avgPos = (averageTotal / progressLimit) * 100;
+
+    container.innerHTML = `
+        <div class="analysis-card full-width forecast-card ${statusClass}">
+            <div class="fc-header">
+                <div class="fc-icon"><i class="fa-solid ${statusIcon}"></i></div>
+                <div class="fc-info">
+                    <span class="fc-title">Dự báo cuối tháng</span>
+                    <span class="fc-amount">${formatCurrency(projectedTotal)}</span>
+                </div>
+            </div>
+            <div class="fc-message">${message}</div>
+            
+            <div class="forecast-bar-container">
+                <div class="fb-labels">
+                    <span>Thực tế: ${formatCurrency(currentTotal)}</span>
+                    <span style="opacity:0.6">TB 3 tháng: ${formatCurrency(averageTotal)}</span>
+                </div>
+                <div class="fb-track">
+                    ${avgPos > 0 ? `<div class="fb-marker" style="left: ${Math.min(avgPos, 100)}%"></div>` : ''}
+                    <div class="fb-fill current" style="width: ${Math.min(currentWidth, 100)}%"></div>
+                    <div class="fb-fill projected" style="left: ${Math.min(currentWidth, 100)}%; width: ${Math.min(projectedWidth, 100 - currentWidth)}%"></div>
+                </div>
+                <div class="fb-legend"> 
+                    <small><span class="dot current"></span> Đã chi</small>
+                    <small><span class="dot projected"></span> Dự kiến thêm</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="analysis-card full-width" style="margin-top:1rem">
+            <h4 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:0.8rem;">Chi tiết dự báo</h4>
+            
+            <div class="details-row" style="margin-bottom:0.5rem; justify-content:space-between; font-size:0.9rem;">
+                <span style="color:var(--text-muted)">Sinh hoạt (${daysRemaining} ngày tới):</span>
+                <b style="color:var(--text-light)">+${formatCurrency(projectedVariable)}</b>
+            </div>
+             <div class="details-row" style="margin-bottom:0.5rem; justify-content:space-between; font-size:0.9rem;">
+                 <span style="color:var(--text-muted)">Định phí kỳ vọng:</span>
+                 <b style="color:var(--text-light)">+${formatCurrency(expectedFixedSum - currentMonthTx.filter(t => LUMP_SUM_CATEGORIES.includes(t.category)).reduce((s,t)=>s+t.amount,0))}</b>
+             </div>
+            <div class="details-row" style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid rgba(255,255,255,0.1); justify-content:space-between; font-size:0.9rem;">
+                 <span>Tốc độ tiêu (${burnRateSource}):</span>
+                 <b>${formatCurrency(dailyBurnRate)}/ngày</b>
+            </div>
+        </div>
+    `;
+}
+
 
 function populateCustomTrendDropdown() {
     const optionsContainer = document.getElementById('trend-category-options');
@@ -459,11 +973,42 @@ function renderCategoryBreakdown() {
      const filtered = getFilteredTransactions();
      const total = filtered.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
      
+     // 1. Calculate Current Period Totals
      const catTotals = {};
      filtered.forEach(t => {
         catTotals[t.category] = (catTotals[t.category] || 0) + (parseFloat(t.amount) || 0);
     });
     
+    // 2. Calculate Previous Period Totals (for Comparison)
+    // Same logic as renderComparison
+    let prevFilterFn = () => false;
+    const targetDate = new Date(currentViewDate);
+    
+    if (currentFilter === 'day') {
+        const yesterday = new Date(targetDate);
+        yesterday.setDate(targetDate.getDate() - 1);
+        prevFilterFn = (t) => isSameDay(t.date, yesterday);
+    } else if (currentFilter === 'week') {
+        const lastWeek = new Date(targetDate);
+        lastWeek.setDate(targetDate.getDate() - 7);
+        prevFilterFn = (t) => isSameWeek(t.date, lastWeek);
+    } else if (currentFilter === 'month') {
+        const lastMonth = new Date(targetDate);
+        lastMonth.setMonth(targetDate.getMonth() - 1);
+        prevFilterFn = (t) => isSameMonth(t.date, lastMonth);
+    } else if (currentFilter === 'year') {
+         const lastYear = new Date(targetDate);
+         lastYear.setFullYear(targetDate.getFullYear() - 1);
+         prevFilterFn = (t) => isSameYear(t.date, lastYear);
+    }
+    
+    const prevTransactions = transactions.filter(prevFilterFn);
+    const prevCatTotals = {};
+    prevTransactions.forEach(t => {
+        prevCatTotals[t.category] = (prevCatTotals[t.category] || 0) + (parseFloat(t.amount) || 0);
+    });
+
+    // 3. Render
     const sortedCats = Object.entries(catTotals).sort(([,a], [,b]) => b - a);
     
     categoryBreakdownEl.innerHTML = '';
@@ -477,14 +1022,37 @@ function renderCategoryBreakdown() {
         const percent = ((amount / total) * 100).toFixed(1);
         const iconClass = categoryIcons[cat] || categoryIcons['default'];
         
+        // Calculate Trend
+        const prevAmount = prevCatTotals[cat] || 0;
+        let trendHtml = '';
+        
+        if (prevAmount > 0) {
+            const diff = amount - prevAmount;
+            const diffPercent = ((diff / prevAmount) * 100).toFixed(0);
+            
+            if (diff > 0) {
+                trendHtml = `<span class="trend-tag up"><i class="fa-solid fa-arrow-trend-up"></i> ${diffPercent}%</span>`;
+            } else if (diff < 0) {
+                 // diffPercent is negative already
+                trendHtml = `<span class="trend-tag down"><i class="fa-solid fa-arrow-trend-down"></i> ${Math.abs(diffPercent)}%</span>`;
+            } else {
+                 trendHtml = `<span class="trend-tag neutral">-</span>`;
+            }
+        } else if (amount > 0 && currentFilter !== 'all') {
+             // New spending
+             trendHtml = `<span class="trend-tag new">Mới</span>`;
+        }
+        
         const div = document.createElement('div');
         div.className = 'breakdown-item';
         div.innerHTML = `
             <div class="bd-header">
                 <div class="bd-cat">
-                     <i class="fa-solid ${iconClass}" style="color:var(--primary)"></i> ${cat}
+                     <i class="fa-solid ${iconClass}" style="color:var(--primary)"></i> 
+                     <span class="cat-label">${cat}</span>
+                     ${trendHtml}
                 </div>
-                <div class="bd-amount">${formatCurrency(amount)} (${percent}%)</div>
+                <div class="bd-amount">${formatCurrency(amount)} <small>(${percent}%)</small></div>
             </div>
             <div class="progress-track">
                 <div class="progress-fill" style="width: ${percent}%"></div>
@@ -814,6 +1382,7 @@ function openEditModal(transaction) {
     // UI Changes
     btnDeleteTransaction.style.display = 'block'; // Show Delete
     btnSaveTransaction.innerText = 'Lưu thay đổi';
+    btnSaveTransaction.disabled = false;
     
     modalTransaction.classList.add('active');
 }
@@ -824,61 +1393,79 @@ const amountSuggestions = document.getElementById('amount-suggestions');
 
 if (amountInput) {
     amountInput.addEventListener('input', (e) => {
-        // Get current cursor position (though usually at end)
         const originalVal = e.target.value;
-        
-        // Remove non-digits
         let valueStr = originalVal.replace(/\D/g, '');
         let valueNum = parseInt(valueStr);
         
         // Format with dots
         if (valueStr) {
-            e.target.value = valueStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            const formatted = valueStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            if (e.target.value !== formatted) {
+                // Only update if changed to avoid cursor jumping issues (basic)
+                 e.target.value = formatted;
+            }
         } else {
              e.target.value = '';
         }
 
         // Suggestions Logic
         if (amountSuggestions) {
-            amountSuggestions.innerHTML = ''; // Clear old
+            amountSuggestions.innerHTML = '';
             
-            if (valueNum > 0 && valueNum < 10000000000) {
-                 // Generate suggestions: 000, 0000, 00000 if meaningful
-                 // Logic: User types '15' -> Suggest '15.000', '150.000', '1.500.000'
+            if (valueNum > 0 && valueNum < 100000000) { // Limit max input base
+                 const candidates = [];
                  
-                 // Generate candidates using Set to deduplicate
-                 const base = valueStr;
-                 const candidates = new Set();
+                 // Shortcuts logic:
+                 // 5 -> 5.000 (k), 50.000, 500.000
+                 // 50 -> 50.000 (k), 500.000, 5.000.000 (tr)
                  
-                 // Prioritize common multiples: 000 (k), 0000 (10k), 00000 (100k), 000000 (m)
-                 candidates.add(parseInt(base + '000'));
-                 candidates.add(parseInt(base + '0000'));
-                 candidates.add(parseInt(base + '00000'));
-                 candidates.add(parseInt(base + '000000'));
+                 if (valueNum < 1000) {
+                     candidates.push({ val: valueNum * 1000, suffix: 'k' }); // 5k
+                     candidates.push({ val: valueNum * 10000, suffix: '' }); // 50k
+                     if (valueNum < 100) candidates.push({ val: valueNum * 100000, suffix: '' }); // 500k
+                 } else if (valueNum < 1000000) {
+                     candidates.push({ val: valueNum * 1000, suffix: 'k' }); // 500k -> 500tr (too big?) or 50 -> 50k
+                 }
+                 
+                 // Standard Finance App Logic (Append 000)
+                 // If I type "50", I likely want "50.000"
+                 // If I type "200", I likely want "200.000"
+                 // Check specific ranges
+                 
+                 const opts = new Set();
+                 const finalCands = [];
+                 
+                 // Always suggest appending '000' (The "k" shortcut)
+                 const kVal = parseInt(valueStr + '000');
+                 if (kVal < 1000000000) finalCands.push({ val: kVal, suffix: 'k' });
+                 
+                 // If input is small (e.g. 5, 10, 50), suggest 0000 (10k range)
+                 if (valueStr.length <= 2) {
+                     const tenKVal = parseInt(valueStr + '0000');
+                     if (tenKVal < 1000000000) finalCands.push({ val: tenKVal, suffix: '' });
+                 }
+                 
+                 // Suggest 'Million' (000 000) if reasonable
+                 if (valueStr.length <= 3) { // 5 -> 5tr, 500 -> 500tr
+                      const mVal = parseInt(valueStr + '000000');
+                      if (mVal < 10000000000 && mVal !== kVal) finalCands.push({ val: mVal, suffix: 'tr' });
+                 }
 
-                 // Convert to array, filter valid, and take top 3
-                 const finalSuggestions = Array.from(candidates)
-                    .filter(s => s !== valueNum && s < 100000000000)
-                    .slice(0, 3); // Max 3 suggestions
-
-                 // Render Suggestions
-                 finalSuggestions.forEach(s => {
-                     // Check specific condition to avoid duplicates or redundant (e.g. if user typed 15000, don't suggest 15000 again?)
-                     // If suggested value equals typed value, skip?
-                     if (s === valueNum) return;
+                 // Render
+                 finalCands.forEach(item => {
+                     if (opts.has(item.val)) return;
+                     opts.add(item.val);
                      
-                     // Format suggestion
-                     const sFormatted = s.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                     const sFormatted = item.val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
                      
                      const chip = document.createElement('div');
                      chip.className = 'suggestion-chip';
                      chip.innerText = sFormatted;
                      
                      chip.onclick = () => {
-                         // Apply suggestion
                          amountInput.value = sFormatted;
-                         amountInput.focus(); // Keep focus
-                         amountSuggestions.innerHTML = ''; // Clear suggestions after selection
+                         amountInput.focus();
+                         amountSuggestions.innerHTML = ''; 
                      };
                      
                      amountSuggestions.appendChild(chip);
@@ -886,9 +1473,6 @@ if (amountInput) {
             }
         }
     });
-    
-    // Hide suggestions on blur (delayed to allow click) or simply clear when empty
-    // Better: hide when user clears input
 }
 
 fabAdd.addEventListener('click', () => {
@@ -902,6 +1486,7 @@ fabAdd.addEventListener('click', () => {
     // UI Changes
     btnDeleteTransaction.style.display = 'none'; // Hide Delete
     btnSaveTransaction.innerText = 'Lưu';
+    btnSaveTransaction.disabled = false;
     
     modalTransaction.classList.add('active');
     document.getElementById('amount-input').focus();
@@ -997,9 +1582,11 @@ if (btnExportData) {
 transactionForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
+    if (btnSaveTransaction.disabled) return;
+
     // Parse Amount (remove dots)
     const rawAmount = document.getElementById('amount-input').value.replace(/\./g, '');
-    const amount = parseFloat(rawAmount);
+    const amount = parseFloat(rawAmount); // Should handle empty string if validation passes
     
     const category = selectedCategoryInput.value;
     const dateInput = document.getElementById('date-input').value; // yyyy-mm-dd
@@ -1010,20 +1597,24 @@ transactionForm.addEventListener('submit', async (e) => {
         return;
     }
 
-    // Preserve time if editing, else default to current time for new but we only have date input?
-    // User only sees Date input. Ideally we preserve time if editing. 
-    // Simply: set the date part of the existing Date object if editing
-    
+    if (isNaN(amount) || amount <= 0) {
+        showToast("Vui lòng nhập số tiền hợp lệ!", "error");
+        return;
+    }
+
+    // Disable button to prevent double click
+    const originalBtnText = btnSaveTransaction.innerText;
+    btnSaveTransaction.disabled = true;
+    btnSaveTransaction.innerText = 'Đang lưu...';
+
+    // Preserve time if editing
     let txDate = new Date(dateInput);
-    
     if (editingTransactionId) {
-        // Find original to keep time
         const original = transactions.find(t => t.id === editingTransactionId);
-        if (original) {
+        if (original && original.date) {
             txDate.setHours(original.date.getHours(), original.date.getMinutes(), original.date.getSeconds());
         }
     } else {
-        // Set to current time for new
         const now = new Date();
         txDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
     }
@@ -1036,54 +1627,70 @@ transactionForm.addEventListener('submit', async (e) => {
         type: 'Expense'
     };
     
+    // ---------------------------------------------------------
+    // OPTIMISTIC UPDATE
+    // ---------------------------------------------------------
+    const tempId = editingTransactionId || ('temp_' + Date.now());
+    
     if (editingTransactionId) {
-        // UPDATE MODE
+        // UPDATE LOCAL
         const index = transactions.findIndex(t => t.id === editingTransactionId);
         if (index !== -1) {
             transactions[index] = { ...transactions[index], ...txData };
         }
-        
-        if (db) {
-            try {
-                await updateDoc(doc(db, "transactions", editingTransactionId), {
-                     ...txData,
-                     // Firebase needs Timestamp or Date (SDK converts Date to Timestamp)
-                    updatedAt: serverTimestamp()
-                });
-                showToast("Đã cập nhật chi tiêu!");
-            } catch (err) {
-                console.error("Error updating", err);
-                showToast("Lỗi cập nhật!", "error");
-            }
-        }
     } else {
-        // ADD MODE
+        // ADD LOCAL with Temp ID
         const newTx = {
+            id: tempId,
             ...txData,
             createdAt: new Date().toISOString()
         };
-        
-        // Optimistic UI
-        transactions.unshift(newTx); // Will fix ID after reload or we can rely on render sorting
-        
-        if (db) {
-            try {
+        transactions.unshift(newTx);
+    }
+
+    // Update UI Immediately
+    renderTransactions();
+    modalTransaction.classList.remove('active');
+    transactionForm.reset();
+    
+    // ---------------------------------------------------------
+    // ASYNC SERVER SYNC
+    // ---------------------------------------------------------
+    if (db) {
+        try {
+            if (editingTransactionId) {
+                await updateDoc(doc(db, "transactions", editingTransactionId), {
+                     ...txData,
+                    updatedAt: serverTimestamp()
+                });
+                showToast("Đã cập nhật chi tiêu!");
+            } else {
                 const docRef = await addDoc(collection(db, "transactions"), {
                     ...txData,
                     createdAt: serverTimestamp()
                 });
-                // Update the local optimistic object with the real ID just in case
-                transactions[0].id = docRef.id;
+                
+                // Update the local item with real ID
+                const localItem = transactions.find(t => t.id === tempId);
+                if (localItem) {
+                    localItem.id = docRef.id;
+                }
                 showToast("Đã thêm chi tiêu thành công!");
-            } catch (err) {
-                 console.error("Error adding", err);
             }
+        } catch (err) {
+            console.error("Error saving transaction", err);
+            showToast("Lỗi lưu dữ liệu! Vui lòng kiểm tra mạng.", "error");
+            // Optional: Revert local change if critical
+        } finally {
+            // Reset Button State (ready for next time modal opens)
+            btnSaveTransaction.disabled = false;
+            btnSaveTransaction.innerText = 'Lưu';
         }
+    } else {
+        // Offline / No DB
+        btnSaveTransaction.disabled = false;
+        btnSaveTransaction.innerText = 'Lưu';
     }
-
-    renderTransactions();
-    modalTransaction.classList.remove('active');
-    transactionForm.reset();
 });
 
 const modalConfirm = document.getElementById('modal-confirm');
