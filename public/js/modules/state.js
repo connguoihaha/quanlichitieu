@@ -13,7 +13,8 @@ export const state = {
             dateTo: null,
             amountMin: null,
             amountMax: null
-        }
+        },
+        listCategory: 'all',
     },
     trend: {
         filter: '7days',

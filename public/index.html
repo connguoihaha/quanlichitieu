@@ -71,9 +71,16 @@
                 <button class="filter-chip" data-filter="all">Tất cả</button>
             </div>
             
-            <div class="section-header">
-                <h3>Giao dịch</h3>
-                <span id="filter-label" class="filter-info">Tháng 1/2026</span>
+            <div class="section-header" style="justify-content: space-between; align-items: center;">
+                 <h3>Giao dịch</h3>
+                 <!-- Custom Dropdown for Category Filter -->
+                 <div class="custom-select-wrapper compact" id="main-category-wrapper" style="min-width: 120px;">
+                    <div class="custom-select-trigger compact" id="main-category-trigger">
+                        <span id="main-category-label">Tất cả</span>
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </div>
+                    <div class="custom-options" id="main-category-options"></div>
+                 </div>
             </div>
             <div class="transactions-list" id="transactions-list">
                 <!-- Items will be injected here -->

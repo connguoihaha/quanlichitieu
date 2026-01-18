@@ -44,6 +44,11 @@ export function getFilteredTransactions() {
     targetDate.setHours(23, 59, 59, 999);
     
     return state.transactions.filter(t => {
+        // Filter by main list category if set
+        if (state.filter.listCategory && state.filter.listCategory !== 'all') {
+            if (t.category !== state.filter.listCategory) return false;
+        }
+
         const tDate = t.date; 
         if (state.filter.current === 'day') return isSameDay(tDate, targetDate);
         if (state.filter.current === 'week') return isSameWeek(tDate, targetDate);

@@ -955,6 +955,30 @@ input[type="text"]:focus {
     border-radius: 12px;
 }
 
+/* Compact Dropdown Mode */
+.custom-select-wrapper.compact {
+    width: auto;
+    min-width: unset;
+}
+.custom-select-trigger.compact {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    gap: 8px;
+    background: rgba(148, 161, 178, 0.15); /* #94a1b2 Tint */
+    border: 1px solid rgba(148, 161, 178, 0.3);
+    color: #fffffe;
+    font-weight: 500;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+.custom-select-trigger.compact i {
+    color: #94a1b2;
+}
+.custom-select-wrapper.compact .custom-options {
+    min-width: 180px;
+    left: auto; 
+    right: 0; /* Anchor to right edge */
+}
+
 #modal-search input[type="date"] {
     background: transparent;
     border: none;

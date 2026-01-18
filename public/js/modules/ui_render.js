@@ -70,7 +70,7 @@ export function renderTransactions() {
     }
     */
     
-    if(filterLabel) filterLabel.innerHTML = label; // Use innerHTML because label might contain HTML now
+    // if(filterLabel) filterLabel.innerHTML = label; // Element removed from UI
     if(currentMonthLabel) currentMonthLabel.innerHTML = label; // Use innerHTML because label might contain HTML now
 
     // List
@@ -202,7 +202,17 @@ function renderComparison(currentTotal) {
          prevFilterFn = (t) => isSameYear(t.date, lastYear);
     }
     
-    const prevTransactions = state.transactions.filter(prevFilterFn);
+    const prevTransactions = state.transactions.filter(t => {
+        // 1. Time Filter
+        if (!prevFilterFn(t)) return false;
+        
+        // 2. Category Filter (Fix: Compare Apples to Apples)
+        if (state.filter.listCategory && state.filter.listCategory !== 'all') {
+            if (t.category !== state.filter.listCategory) return false;
+        }
+        
+        return true;
+    });
     prevTotal = prevTransactions.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
     
     if (prevTotal === 0) {
@@ -728,192 +738,219 @@ export function populateCustomTrendDropdown() {
     }
 }
 
+// Helper for Main Filter Options
+function addCustomMainOption(container, value, text) {
+    const div = document.createElement('div');
+    div.className = 'custom-option main-cat-option-item';
+    if (value === (state.filter.listCategory || 'all')) div.classList.add('selected');
+    div.dataset.value = value;
+    
+    const iconClass = categoryIcons[value] || (value === 'all' ? 'fa-layer-group' : categoryIcons['default']);
+    div.innerHTML = `<i class="fa-solid ${iconClass}" style="width:20px; text-align:center;"></i> ${text}`;
+    
+    container.appendChild(div);
+}
+
+export function renderMainCategoryOptions() {
+    const optionsContainer = document.getElementById('main-category-options');
+    const label = document.getElementById('main-category-label');
+    
+    if (!optionsContainer || !label) return;
+    
+    optionsContainer.innerHTML = '';
+    
+    // Add "All"
+    addCustomMainOption(optionsContainer, 'all', 'Tất cả');
+    
+    // Add Categories
+    state.categories.forEach(cat => {
+        addCustomMainOption(optionsContainer, cat, cat);
+    });
+    
+    // Update Label
+    const currentVal = state.filter.listCategory || 'all';
+    label.innerText = currentVal === 'all' ? 'Tất cả' : currentVal;
+    
+    // Update active class in dropdown if open (optional re-render)
+}
+
 export function renderSpendingSpeed() {
     const container = document.getElementById('spending-speed-container');
     if (!container) return;
     
-    // 1. Get Data
-    const forecast = calculateForecast(state.transactions);
-    // Use forecast dailyBurnRate as a baseline, but we mainly compare range avg now
-    const baselineBurnRate = forecast.dailyBurnRate || 0;
-    
-    // Get setting from state (default 14 if not set)
-    const days = state.trend.speedDays || 14; 
-    
     const now = new Date();
-    const totals = [];
     
-    for(let i=days-1; i>=0; i--) {
-        const d = new Date(now);
-        d.setDate(now.getDate() - i);
+    // 1. Current Period (10 Days) - Smoother than 7 days, reduces weekend false alarms
+    const currentWindowDays = 10;
+    const currentStart = new Date(now);
+    currentStart.setDate(now.getDate() - (currentWindowDays - 1));
+    currentStart.setHours(0,0,0,0);
+    
+    // Filter Transactions
+    const currentTx = state.transactions.filter(t => 
+        t.date >= currentStart && t.date <= now && !LUMP_SUM_CATEGORIES.includes(t.category)
+    );
+    
+    const currentTotals = {};
+    const currentFrequency = {}; // Track unique days active
+    let currentGrandTotal = 0;
+    
+    currentTx.forEach(t => {
+        const amount = parseFloat(t.amount) || 0;
+        const dateStr = t.date.toDateString();
         
-        // Exclude Fixed Costs to focus on Variable Burn
-        const sum = state.transactions
-            .filter(t => isSameDay(t.date, d))
-            .filter(t => !LUMP_SUM_CATEGORIES.includes(t.category))
-            .reduce((s,t) => s + (parseFloat(t.amount)||0), 0);
-        totals.push(sum);
-    }
-    
-    // 2. Metrics
-    // Period Average (Dynamic based on Range)
-    const periodTotal = totals.reduce((a,b) => a+b, 0);
-    const periodAvg = periodTotal / (days || 1);
+        currentTotals[t.category] = (currentTotals[t.category] || 0) + amount;
+        currentGrandTotal += amount;
+        
+        // Track frequency
+        if (!currentFrequency[t.category]) currentFrequency[t.category] = new Set();
+        currentFrequency[t.category].add(dateStr);
+    });
 
-    // Recent Velocity (Dynamic Window)
-    // 7d -> 3 days, 14d -> 3 days, 30d -> 6 days
-    const recentWindow = Math.max(3, Math.round(days * 0.2));
-    const recentTotals = totals.slice(Math.max(totals.length - recentWindow, 0));
-    const recentAvg = recentTotals.reduce((a,b)=>a+b,0) / (recentTotals.length || 1);
+    // 2. Baseline Period (Previous 30 Days)
+    // We compare "Average 10-day spending" from the last month
+    const baseWindowDays = 30;
+    const baseStart = new Date(currentStart);
+    baseStart.setDate(baseStart.getDate() - baseWindowDays);
+    const baseEnd = new Date(currentStart);
+    baseEnd.setDate(baseEnd.getDate() - 1);
+    baseEnd.setHours(23,59,59,999);
     
-    let message = 'Tốc độ ổn định';
-    let color = 'var(--text-main)'; // Neutral/Success
+    const baseTx = state.transactions.filter(t => 
+        t.date >= baseStart && t.date <= baseEnd && !LUMP_SUM_CATEGORIES.includes(t.category)
+    );
     
-    // Insight Logic: Compare Recent Velocity vs Period Average
-    // Dynamic Thresholds based on Range (shorter range = more volatile = needs wider tolerance)
-    let upperLimit = 1.3;
-    let lowerLimit = 0.7;
-    
-    if (days === 7) {
-        upperLimit = 1.35;
-        lowerLimit = 0.65;
-    } else if (days === 30) {
-        upperLimit = 1.25;
-        lowerLimit = 0.75;
-    }
-
-    if (periodAvg > 0) {
-        const ratio = recentAvg / periodAvg;
-        if (ratio > upperLimit) {
-            message = 'Đang tiêu nhanh hơn TB'; 
-            color = '#ff4757'; // Danger
-        } else if (ratio < lowerLimit) {
-             message = 'Tiết kiệm hơn TB';
-             color = '#2ecc71'; // Success
-        } else {
-             message = 'Duy trì ổn định';
-             color = '#ffa502'; // Warning/Neutral
-        }
-    } else if (recentAvg > 0) {
-        message = 'Đang hình thành thói quen';
-        color = '#ffa502';
-    }
-    
-    // 3. Sparkline Formatting (Smart Scale for Spikes)
-    const width = 300;
-    const height = 60;
-    
-    // Calculate P85 (85th percentile) to handle spikes better for small N
-    const sortedVals = [...totals].sort((a,b) => a-b);
-    const p85Index = Math.floor(sortedVals.length * 0.85);
-    const p85Val = sortedVals[p85Index] || 0;
-    
-    // Set domain max to 1.5 * P85. This ensures spikes don't flatten the rest.
-    // However, ensure we at least cover the average line.
-    let domainMax = p85Val * 1.5;
-    if (domainMax < periodAvg) domainMax = periodAvg * 1.5;
-    if (domainMax === 0) domainMax = 100;
-    if (isNaN(domainMax)) domainMax = 100;
-    
-    // Line Path Construction
-    let pathD = '';
-    totals.forEach((val, i) => {
-        const x = (i / (days - 1)) * width;
-        
-        // Cap the value at domainMax for drawing (visual clipping)
-        const cappedVal = Math.min(val, domainMax);
-        
-        const y = height - ((cappedVal / domainMax) * height);
-        
-        if (i === 0) pathD += `M ${x} ${y}`;
-        else pathD += ` L ${x} ${y}`;
+    const baseTotals = {};
+    baseTx.forEach(t => {
+         const amount = parseFloat(t.amount) || 0;
+        baseTotals[t.category] = (baseTotals[t.category] || 0) + amount;
     });
     
-    // Average Line (Dashed)
-    const avgY = height - ((Math.min(periodAvg, domainMax) / domainMax) * height);
+    // 3. Compare and Find Anomalies (Smart Thresholds)
+    const anomalies = [];
     
+    Object.keys(currentTotals).forEach(cat => {
+        const currentSum = currentTotals[cat];
+        const baseSum = baseTotals[cat] || 0;
+        
+        // Normalize Baseline to match Current Window (10 days)
+        // e.g. (Total 30 days / 30) * 10
+        const baselineNorm = (baseSum / baseWindowDays) * currentWindowDays;
+        
+        // Calculate Category Importance (Weight in current spending)
+        const weight = currentGrandTotal > 0 ? (currentSum / currentGrandTotal) : 0;
+        const daysActive = currentFrequency[cat] ? currentFrequency[cat].size : 0;
+        
+        // Dynamic Threshold based on Importance
+        // Major category (>20%): Strict threshold (1.15x is warning)
+        // Minor category (<5%): Loose threshold (1.4x is warning)
+        let threshold = 1.25; // Default
+        if (weight > 0.2) threshold = 1.15;
+        if (weight < 0.05) threshold = 1.4;
+        
+        // Logic for New Categories (No history)
+        if (baselineNorm === 0) {
+             // Only warn if: > 300k OR appears on >= 2 distinct days
+             if (currentSum > 300000 || daysActive >= 2) {
+                 anomalies.push({ cat, currentSum, baselineNorm, ratio: 100, diff: currentSum, weight, isNew: true });
+             }
+        } 
+        // Logic for Existing Categories
+        else if (currentSum > 50000) { 
+             const ratio = currentSum / baselineNorm;
+             const diff = currentSum - baselineNorm;
+             
+             // Check Threshold
+             if (ratio > threshold) {
+                 // Only flag if absolute difference is meaningful (> 50k for minor, > 100k for major)
+                 const minDiff = weight < 0.05 ? 50000 : 100000;
+                 if (diff > minDiff) {
+                    anomalies.push({ cat, currentSum, baselineNorm, ratio, diff, weight, isNew: false });
+                 }
+             }
+        }
+    });
+    
+    // Sort by Impact (Difference amount)
+    anomalies.sort((a,b) => b.diff - a.diff);
+    
+    // 4. Render
+    let contentHtml = '';
+    
+    if (anomalies.length > 0) {
+        const topAnomalies = anomalies.slice(0, 2);
+        
+        contentHtml = topAnomalies.map(item => {
+            const percent = ((item.ratio - 1) * 100).toFixed(0);
+            const iconClass = categoryIcons[item.cat] || categoryIcons['default'];
+            const diffFormatted = formatCurrency(item.diff);
+            
+            // Visual Bar Logic
+            // The whole bar width represents 'Current Sum' (100%)
+            // The 'Normal' portion is (Base / Current) %
+            // The rest is 'Excess'
+            let normalPercent = (item.baselineNorm / item.currentSum) * 100;
+            if (normalPercent > 100) normalPercent = 100; // Should not happen given logic, but safety
+            if (item.baselineNorm === 0) normalPercent = 0; // New category
+            
+            let message = '';
+            if (item.baselineNorm === 0) message = 'Chi phí mới';
+            else message = `Tăng <b>${percent}%</b>`;
+            
+            return `
+                <div style="background:rgba(255,255,255,0.03); border-radius:12px; padding:12px; margin-bottom:12px;">
+                    <!-- Header -->
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div style="width:32px; height:32px; border-radius:10px; background:rgba(255, 71, 87, 0.15); display:flex; align-items:center; justify-content:center; color:#ff4757; font-size:0.9rem;">
+                                <i class="fa-solid ${iconClass}"></i>
+                            </div>
+                            <div>
+                                <div style="font-size:0.9rem; font-weight:600; color:var(--text-main); line-height:1.2;">${item.cat}</div>
+                                <div style="font-size:0.75rem; color:var(--text-muted);">${message}</div>
+                            </div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:0.9rem; font-weight:700; color:#ff4757;">+${diffFormatted}</div>
+                            <div style="font-size:0.7rem; color:var(--text-muted); opacity:0.8;">Vượt mức</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Visual Bar -->
+                    <div style="width:100%; height:8px; background:rgba(255, 71, 87, 0.25); border-radius:4px; position:relative; overflow:hidden; margin-bottom:6px;">
+                        <div style="position:absolute; top:0; left:0; height:100%; width:${normalPercent}%; background:rgba(255,255,255,0.3); border-right:1px solid rgba(0,0,0,0.2);"></div>
+                    </div>
+                    
+                    <!-- Footer Numbers -->
+                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted);">
+                        <span>Thường lệ: ${formatCurrency(item.baselineNorm)}</span>
+                        <span>Hiện tại: <b style="color:var(--text-light)">${formatCurrency(item.currentSum)}</b></span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        // No need for regex replacement as we use cards now with margin-bottom
+
+    } else {
+        // Safe state
+        contentHtml = `
+            <div style="display:flex; align-items:center; gap:12px;">
+                 <div style="width:40px; height:40px; border-radius:12px; background:rgba(46, 204, 113, 0.1); display:flex; align-items:center; justify-content:center; color:#2ecc71; flex-shrink:0;">
+                    <i class="fa-solid fa-check" style="font-size:1.1rem"></i>
+                 </div>
+                 <div>
+                    <div style="font-size:0.95rem; font-weight:600; color:var(--text-main);">Chi tiêu ổn định</div>
+                    <div style="font-size:0.85rem; color:var(--text-muted);">Không có danh mục nào tăng bất thường trong 10 ngày qua.</div>
+                 </div>
+            </div>
+        `;
+    }
+
     container.innerHTML = `
         <div class="analysis-card full-width" style="padding: 16px; margin-bottom: 0; display:block;">
-             <!-- Header: Title & Filter Chips -->
-             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <div style="font-size:1rem; font-weight:600; color:var(--text-main);">Tốc độ chi tiêu</div>
-                
-                <div class="speed-filter-chips" style="display:flex; background:rgba(255,255,255,0.08); border-radius:20px; padding:3px; gap:2px;">
-                    <button class="speed-chip ${days===7?'active':''}" data-days="7">7 ngày</button>
-                    <button class="speed-chip ${days===14?'active':''}" data-days="14">14 ngày</button>
-                    <button class="speed-chip ${days===30?'active':''}" data-days="30">30 ngày</button>
-                </div>
-             </div>
-             
-             <!-- Metrics & Insight -->
-             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:12px;">
-                 <div>
-                     <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:2px;">Trạng thái (${days} ngày)</div>
-                     <div style="font-size:1rem; font-weight:700; color:${color}; opacity:0; animation: fadeIn 0.5s forwards;">${message}</div>
-                 </div>
-                 <div style="text-align:right">
-                     <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:2px;">Trung bình / ngày</div>
-                     <div style="font-size:1.1rem; font-weight:700; color:var(--text-light); opacity:0; animation: fadeIn 0.5s forwards;">${formatCurrency(periodAvg)}</div>
-                 </div>
-             </div>
-             
-             <!-- Chart -->
-             <div style="width:100%; height:60px; position:relative; overflow:hidden;">
-                  <svg width="100%" height="100%" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="overflow:visible">
-                        <!-- Average Line (Benchmark) -->
-                        <line x1="0" y1="${avgY}" x2="${width}" y2="${avgY}" 
-                              stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="4 4" opacity="0.4" />
-                        
-                        <!-- Sparkline -->
-                        <path class="line-path" d="${pathD}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" filter="drop-shadow(0px 4px 6px ${color}40)" />
-                        
-                        <!-- Last Dot -->
-                         ${totals.length > 0 ? (() => {
-                             const lastI = totals.length - 1;
-                             const lastVal = Math.min(totals[lastI], domainMax);
-                             const x = width;
-                             const y = height - ((lastVal / domainMax) * height);
-                             return `<circle cx="${x}" cy="${y}" r="4" fill="${color}" stroke="#1f2937" stroke-width="2" style="opacity:0; animation: fadeIn 0.5s 0.8s forwards;" />`;
-                         })() : ''}
-                  </svg>
-             </div>
+             <div style="font-size:0.9rem; font-weight:600; color:var(--text-main); opacity: 0.9; margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Cảnh báo chi tiêu</div>
+             ${contentHtml}
         </div>
-        <style>
-            .speed-chip {
-                border:none; 
-                background:none; 
-                color:var(--text-muted); 
-                font-size:0.75rem; 
-                padding:4px 10px; 
-                border-radius:16px; 
-                cursor:pointer;
-                transition: all 0.2s;
-                font-weight: 500;
-            }
-            .speed-chip.active {
-                background: var(--bg-card); /* or a lighter bg logic */
-                color: var(--text-main);
-                box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            }
-            /* Dark mode adjust for active chip */
-            .speed-chip.active {
-                background: rgba(255,255,255,0.15);
-                color: #fff;
-            }
-            
-            @keyframes fadeIn {
-                to { opacity: 1; }
-            }
-            
-            .line-path {
-                stroke-dasharray: 1000;
-                stroke-dashoffset: 1000;
-                animation: drawLine 1s ease-out forwards;
-            }
-            
-            @keyframes drawLine {
-                to { stroke-dashoffset: 0; }
-            }
-        </style>
     `;
 }

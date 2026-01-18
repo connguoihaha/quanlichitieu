@@ -316,6 +316,48 @@ export function initListeners() {
         render.renderTrendChart();
     });
     
+    // Main List Category Filter (Custom Dropdown)
+    const mainWrapper = document.getElementById('main-category-wrapper');
+    const mainTrigger = document.getElementById('main-category-trigger');
+    const mainOptions = document.getElementById('main-category-options');
+
+    if (mainWrapper && mainTrigger && mainOptions) {
+        // Initial Render
+        render.renderMainCategoryOptions();
+
+        // Toggle Dropdown
+        mainTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Close others first
+            document.querySelectorAll('.custom-select-wrapper.open').forEach(el => {
+                if (el !== mainWrapper) el.classList.remove('open');
+            });
+            mainWrapper.classList.toggle('open');
+        });
+
+        // Select Option
+        mainOptions.addEventListener('click', (e) => {
+            const option = e.target.closest('.custom-option');
+            if (option) {
+                const value = option.dataset.value;
+                state.filter.listCategory = value;
+                
+                // Update UI
+                render.renderMainCategoryOptions(); // Updates label & selected state
+                render.renderTransactions(); // Updates list
+                
+                mainWrapper.classList.remove('open');
+            }
+        });
+        
+        // Close on click outside (Global listener handled below or add specific)
+        document.addEventListener('click', (e) => {
+             if (!mainWrapper.contains(e.target)) {
+                 mainWrapper.classList.remove('open');
+             }
+        });
+    }
+
     // Spending Speed Filter
     const speedContainer = document.getElementById('spending-speed-container');
     if(speedContainer) {
