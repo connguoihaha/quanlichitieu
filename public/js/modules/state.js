@@ -17,7 +17,8 @@ export const state = {
     },
     trend: {
         filter: '7days',
-        category: 'all'
+        category: 'all',
+        speedDays: 14 // 7, 14, 30
     },
     heatmap: {
         currentDate: new Date()

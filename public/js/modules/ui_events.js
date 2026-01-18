@@ -316,6 +316,18 @@ export function initListeners() {
         render.renderTrendChart();
     });
     
+    // Spending Speed Filter
+    const speedContainer = document.getElementById('spending-speed-container');
+    if(speedContainer) {
+        speedContainer.addEventListener('click', (e) => {
+            if(e.target.classList.contains('speed-chip')) {
+                 const days = parseInt(e.target.dataset.days);
+                 state.trend.speedDays = days;
+                 render.renderSpendingSpeed(); 
+            }
+        });
+    }
+    
     // Trend Dropdown
     const trendWrapper = document.getElementById('trend-category-wrapper');
     const trendTrigger = document.getElementById('trend-category-trigger');

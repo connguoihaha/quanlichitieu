@@ -473,6 +473,10 @@ export function renderForecast() {
 
 export function renderTrendChart() {
     if (!trendChartContainer) return;
+    
+    // Also render spending speed
+    renderSpendingSpeed();
+
     trendChartContainer.innerHTML = '';
     
     const now = new Date();
@@ -722,4 +726,194 @@ export function populateCustomTrendDropdown() {
         });
         label.innerText = state.trend.category === 'all' ? 'Tất cả danh mục' : state.trend.category;
     }
+}
+
+export function renderSpendingSpeed() {
+    const container = document.getElementById('spending-speed-container');
+    if (!container) return;
+    
+    // 1. Get Data
+    const forecast = calculateForecast(state.transactions);
+    // Use forecast dailyBurnRate as a baseline, but we mainly compare range avg now
+    const baselineBurnRate = forecast.dailyBurnRate || 0;
+    
+    // Get setting from state (default 14 if not set)
+    const days = state.trend.speedDays || 14; 
+    
+    const now = new Date();
+    const totals = [];
+    
+    for(let i=days-1; i>=0; i--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        
+        // Exclude Fixed Costs to focus on Variable Burn
+        const sum = state.transactions
+            .filter(t => isSameDay(t.date, d))
+            .filter(t => !LUMP_SUM_CATEGORIES.includes(t.category))
+            .reduce((s,t) => s + (parseFloat(t.amount)||0), 0);
+        totals.push(sum);
+    }
+    
+    // 2. Metrics
+    // Period Average (Dynamic based on Range)
+    const periodTotal = totals.reduce((a,b) => a+b, 0);
+    const periodAvg = periodTotal / (days || 1);
+
+    // Recent Velocity (Dynamic Window)
+    // 7d -> 3 days, 14d -> 3 days, 30d -> 6 days
+    const recentWindow = Math.max(3, Math.round(days * 0.2));
+    const recentTotals = totals.slice(Math.max(totals.length - recentWindow, 0));
+    const recentAvg = recentTotals.reduce((a,b)=>a+b,0) / (recentTotals.length || 1);
+    
+    let message = 'Tốc độ ổn định';
+    let color = 'var(--text-main)'; // Neutral/Success
+    
+    // Insight Logic: Compare Recent Velocity vs Period Average
+    // Dynamic Thresholds based on Range (shorter range = more volatile = needs wider tolerance)
+    let upperLimit = 1.3;
+    let lowerLimit = 0.7;
+    
+    if (days === 7) {
+        upperLimit = 1.35;
+        lowerLimit = 0.65;
+    } else if (days === 30) {
+        upperLimit = 1.25;
+        lowerLimit = 0.75;
+    }
+
+    if (periodAvg > 0) {
+        const ratio = recentAvg / periodAvg;
+        if (ratio > upperLimit) {
+            message = 'Đang tiêu nhanh hơn TB'; 
+            color = '#ff4757'; // Danger
+        } else if (ratio < lowerLimit) {
+             message = 'Tiết kiệm hơn TB';
+             color = '#2ecc71'; // Success
+        } else {
+             message = 'Duy trì ổn định';
+             color = '#ffa502'; // Warning/Neutral
+        }
+    } else if (recentAvg > 0) {
+        message = 'Đang hình thành thói quen';
+        color = '#ffa502';
+    }
+    
+    // 3. Sparkline Formatting (Smart Scale for Spikes)
+    const width = 300;
+    const height = 60;
+    
+    // Calculate P85 (85th percentile) to handle spikes better for small N
+    const sortedVals = [...totals].sort((a,b) => a-b);
+    const p85Index = Math.floor(sortedVals.length * 0.85);
+    const p85Val = sortedVals[p85Index] || 0;
+    
+    // Set domain max to 1.5 * P85. This ensures spikes don't flatten the rest.
+    // However, ensure we at least cover the average line.
+    let domainMax = p85Val * 1.5;
+    if (domainMax < periodAvg) domainMax = periodAvg * 1.5;
+    if (domainMax === 0) domainMax = 100;
+    if (isNaN(domainMax)) domainMax = 100;
+    
+    // Line Path Construction
+    let pathD = '';
+    totals.forEach((val, i) => {
+        const x = (i / (days - 1)) * width;
+        
+        // Cap the value at domainMax for drawing (visual clipping)
+        const cappedVal = Math.min(val, domainMax);
+        
+        const y = height - ((cappedVal / domainMax) * height);
+        
+        if (i === 0) pathD += `M ${x} ${y}`;
+        else pathD += ` L ${x} ${y}`;
+    });
+    
+    // Average Line (Dashed)
+    const avgY = height - ((Math.min(periodAvg, domainMax) / domainMax) * height);
+    
+    container.innerHTML = `
+        <div class="analysis-card full-width" style="padding: 16px; margin-bottom: 0; display:block;">
+             <!-- Header: Title & Filter Chips -->
+             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <div style="font-size:1rem; font-weight:600; color:var(--text-main);">Tốc độ chi tiêu</div>
+                
+                <div class="speed-filter-chips" style="display:flex; background:rgba(255,255,255,0.08); border-radius:20px; padding:3px; gap:2px;">
+                    <button class="speed-chip ${days===7?'active':''}" data-days="7">7 ngày</button>
+                    <button class="speed-chip ${days===14?'active':''}" data-days="14">14 ngày</button>
+                    <button class="speed-chip ${days===30?'active':''}" data-days="30">30 ngày</button>
+                </div>
+             </div>
+             
+             <!-- Metrics & Insight -->
+             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:12px;">
+                 <div>
+                     <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:2px;">Trạng thái (${days} ngày)</div>
+                     <div style="font-size:1rem; font-weight:700; color:${color}; opacity:0; animation: fadeIn 0.5s forwards;">${message}</div>
+                 </div>
+                 <div style="text-align:right">
+                     <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:2px;">Trung bình / ngày</div>
+                     <div style="font-size:1.1rem; font-weight:700; color:var(--text-light); opacity:0; animation: fadeIn 0.5s forwards;">${formatCurrency(periodAvg)}</div>
+                 </div>
+             </div>
+             
+             <!-- Chart -->
+             <div style="width:100%; height:60px; position:relative; overflow:hidden;">
+                  <svg width="100%" height="100%" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="overflow:visible">
+                        <!-- Average Line (Benchmark) -->
+                        <line x1="0" y1="${avgY}" x2="${width}" y2="${avgY}" 
+                              stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="4 4" opacity="0.4" />
+                        
+                        <!-- Sparkline -->
+                        <path class="line-path" d="${pathD}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" filter="drop-shadow(0px 4px 6px ${color}40)" />
+                        
+                        <!-- Last Dot -->
+                         ${totals.length > 0 ? (() => {
+                             const lastI = totals.length - 1;
+                             const lastVal = Math.min(totals[lastI], domainMax);
+                             const x = width;
+                             const y = height - ((lastVal / domainMax) * height);
+                             return `<circle cx="${x}" cy="${y}" r="4" fill="${color}" stroke="#1f2937" stroke-width="2" style="opacity:0; animation: fadeIn 0.5s 0.8s forwards;" />`;
+                         })() : ''}
+                  </svg>
+             </div>
+        </div>
+        <style>
+            .speed-chip {
+                border:none; 
+                background:none; 
+                color:var(--text-muted); 
+                font-size:0.75rem; 
+                padding:4px 10px; 
+                border-radius:16px; 
+                cursor:pointer;
+                transition: all 0.2s;
+                font-weight: 500;
+            }
+            .speed-chip.active {
+                background: var(--bg-card); /* or a lighter bg logic */
+                color: var(--text-main);
+                box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            }
+            /* Dark mode adjust for active chip */
+            .speed-chip.active {
+                background: rgba(255,255,255,0.15);
+                color: #fff;
+            }
+            
+            @keyframes fadeIn {
+                to { opacity: 1; }
+            }
+            
+            .line-path {
+                stroke-dasharray: 1000;
+                stroke-dashoffset: 1000;
+                animation: drawLine 1s ease-out forwards;
+            }
+            
+            @keyframes drawLine {
+                to { stroke-dashoffset: 0; }
+            }
+        </style>
+    `;
 }
