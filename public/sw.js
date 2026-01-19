@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chitieu-v1.0.6';
+const CACHE_NAME = 'chitieu-v1.1.6';
 const ASSETS = [
   './',
   './index.html',
