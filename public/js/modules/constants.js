@@ -20,3 +20,5 @@ export const DEFAULT_CATEGORIES = [
     'Tiền Đt', 'Đồ Dùng Cá Nhân', 'Thuốc Men', 
     'In Giấy Tờ', 'Tiết Kiệm', 'Chi Phí Khác'
 ];
+
+export const APP_VERSION = '1.0.6';

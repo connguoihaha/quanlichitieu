@@ -1,5 +1,5 @@
 import { state, setTransactions } from './state.js';
-import { categoryIcons } from './constants.js';
+import { categoryIcons, APP_VERSION } from './constants.js';
 import * as render from './ui_render.js';
 import * as storage from './storage.js';
 import { showToast } from '../utils.js';
@@ -533,9 +533,77 @@ export function initListeners() {
     const modalSettings = document.getElementById('modal-settings');
     if (btnSettings) {
         btnSettings.addEventListener('click', () => {
-            modalSettings.classList.add('active');
+             modalSettings.classList.add('active');
+             
+             // Auto check for updates
+             const btn = document.getElementById('btn-check-update');
+             if (btn && 'serviceWorker' in navigator) {
+                 // Reset UI elements just in case
+                 if (btn.dataset.action !== 'reload') {
+                      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang kiểm tra...';
+                      btn.disabled = true;
+                 }
+                 
+                 navigator.serviceWorker.getRegistration().then(reg => {
+                     if (!reg) {
+                         btn.innerHTML = 'Lỗi SW';
+                         return;
+                     }
+
+                     // 1. Check if update is already waiting (đã tải xong, chờ reload)
+                     if (reg.waiting || reg.installing) {
+                         btn.dataset.action = 'reload';
+                         btn.innerHTML = '<i class="fa-solid fa-download"></i> Cập nhật ngay';
+                         btn.classList.remove('btn-secondary');
+                         btn.classList.add('btn-primary');
+                         btn.disabled = false;
+                         return;
+                     }
+
+                     // 2. If not, trigger a check (silent or with feedback)
+                     reg.update().then(() => {
+                         const newWorker = reg.installing || reg.waiting;
+                         if (newWorker) {
+                             btn.dataset.action = 'reload';
+                             btn.innerHTML = '<i class="fa-solid fa-download"></i> Cập nhật ngay';
+                             btn.classList.remove('btn-secondary');
+                             btn.classList.add('btn-primary');
+                             btn.disabled = false;
+                         } else {
+                             // No update found (Đã mới nhất)
+                             btn.innerHTML = '<i class="fa-solid fa-check"></i> Đang là bản mới nhất';
+                             setTimeout(() => {
+                                 btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Kiểm tra cập nhật';
+                                 btn.disabled = false;
+                                 btn.classList.add('btn-secondary');
+                                 btn.classList.remove('btn-primary');
+                             }, 1500);
+                         }
+                     }).catch(err => {
+                         console.error('Auto update check failed', err);
+                         btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Kiểm tra cập nhật';
+                         btn.disabled = false;
+                     });
+                 });
+             }
         });
     }
+
+    // Listen for controller change (active SW changed) -> Force update button
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+             const btn = document.getElementById('btn-check-update');
+             if (btn) {
+                 btn.dataset.action = 'reload';
+                 btn.innerHTML = '<i class="fa-solid fa-download"></i> Cập nhật ngay';
+                 btn.classList.remove('btn-secondary');
+                 btn.classList.add('btn-primary');
+                 btn.disabled = false;
+                 showToast('Đã tải xong bản cập nhật mới!');
+             }
+        });
+    }
+
 
     const btnExport = document.getElementById('btn-export-data');
     if (btnExport) {
@@ -563,6 +631,72 @@ export function initListeners() {
             link.click();
             document.body.removeChild(link);
             showToast("Đã tải xuống file CSV!");
+        });
+    }
+
+    // Version & Update Check
+    const versionEl = document.getElementById('app-version');
+    if (versionEl) {
+        versionEl.innerText = 'v' + APP_VERSION;
+    }
+
+    const btnCheckUpdate = document.getElementById('btn-check-update');
+    if (btnCheckUpdate) {
+        btnCheckUpdate.addEventListener('click', async () => {
+             // If button is already in "Update Now" state (reload)
+             if (btnCheckUpdate.dataset.action === 'reload') {
+                 showToast("Đang tải lại ứng dụng...", "info");
+                 // Slight delay to show toast
+                 setTimeout(() => {
+                    window.location.reload();
+                 }, 500);
+                 return;
+             }
+
+             if (!('serviceWorker' in navigator)) {
+                 showToast('Trình duyệt không hỗ trợ cập nhật tự động', 'error');
+                 return;
+             }
+
+             const originalText = btnCheckUpdate.innerHTML;
+             btnCheckUpdate.disabled = true;
+             btnCheckUpdate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang kiểm tra...';
+
+             try {
+                 const reg = await navigator.serviceWorker.getRegistration();
+                 if (!reg) {
+                     showToast('Không tìm thấy Service Worker', 'error');
+                     btnCheckUpdate.disabled = false;
+                     btnCheckUpdate.innerHTML = originalText;
+                     return;
+                 }
+
+                 await reg.update();
+                 
+                 // Check if a new SW is installing or waiting
+                 const newWorker = reg.installing || reg.waiting;
+                 
+                 if (newWorker) {
+                     btnCheckUpdate.dataset.action = 'reload';
+                     btnCheckUpdate.innerHTML = '<i class="fa-solid fa-download"></i> Cập nhật ngay';
+                     btnCheckUpdate.classList.remove('btn-secondary');
+                     btnCheckUpdate.classList.add('btn-primary');
+                     btnCheckUpdate.disabled = false;
+                     showToast('Đã có bản cập nhật mới!');
+                 } else {
+                     btnCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> Đang là bản mới nhất';
+                     showToast('Bạn đang dùng phiên bản mới nhất');
+                     setTimeout(() => {
+                         btnCheckUpdate.innerHTML = originalText;
+                         btnCheckUpdate.disabled = false;
+                     }, 3000);
+                 }
+             } catch (err) {
+                 console.error('Update check failed:', err);
+                 showToast('Lỗi khi kiểm tra cập nhật', 'error');
+                 btnCheckUpdate.disabled = false;
+                 btnCheckUpdate.innerHTML = originalText;
+             }
         });
     }
 }
