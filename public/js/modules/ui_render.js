@@ -885,46 +885,58 @@ export function renderSpendingSpeed() {
             const iconClass = categoryIcons[item.cat] || categoryIcons['default'];
             const diffFormatted = formatCurrency(item.diff);
             
-            // Visual Bar Logic
-            // The whole bar width represents 'Current Sum' (100%)
-            // The 'Normal' portion is (Base / Current) %
-            // The rest is 'Excess'
-            let normalPercent = (item.baselineNorm / item.currentSum) * 100;
-            if (normalPercent > 100) normalPercent = 100; // Should not happen given logic, but safety
-            if (item.baselineNorm === 0) normalPercent = 0; // New category
+            // Visual Bar Logic - now showing 2 separate bars for clearer comparison
+            const maxVal = Math.max(item.currentSum, item.baselineNorm);
+            const baselineWidth = maxVal > 0 ? (item.baselineNorm / maxVal) * 100 : 0;
+            const currentWidth = maxVal > 0 ? (item.currentSum / maxVal) * 100 : 0;
             
-            let message = '';
-            if (item.baselineNorm === 0) message = 'Chi phí mới';
-            else message = `Tăng <b>${percent}%</b>`;
+            let statusText = '';
+            let descText = '';
+            if (item.baselineNorm === 0) {
+                statusText = 'Mới xuất hiện';
+                descText = 'Danh mục này chưa có trong 30 ngày trước';
+            } else {
+                statusText = `Chi nhiều hơn ${percent}%`;
+                descText = 'so với 30 ngày qua';
+            }
             
             return `
-                <div style="background:rgba(255,255,255,0.03); border-radius:12px; padding:12px; margin-bottom:12px;">
+                <div style="background:rgba(255,255,255,0.03); border-radius:12px; padding:14px; margin-bottom:12px;">
                     <!-- Header -->
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
                         <div style="display:flex; align-items:center; gap:10px;">
-                            <div style="width:32px; height:32px; border-radius:10px; background:rgba(255, 71, 87, 0.15); display:flex; align-items:center; justify-content:center; color:#ff4757; font-size:0.9rem;">
+                            <div style="width:36px; height:36px; border-radius:10px; background:rgba(255, 71, 87, 0.15); display:flex; align-items:center; justify-content:center; color:#ff4757; font-size:1rem;">
                                 <i class="fa-solid ${iconClass}"></i>
                             </div>
                             <div>
-                                <div style="font-size:0.9rem; font-weight:600; color:var(--text-main); line-height:1.2;">${item.cat}</div>
-                                <div style="font-size:0.75rem; color:var(--text-muted);">${message}</div>
+                                <div style="font-size:0.95rem; font-weight:600; color:var(--text-main); line-height:1.3;">${item.cat}</div>
+                                <div style="font-size:0.75rem; color:#ff6b7a;">${statusText}</div>
                             </div>
                         </div>
                         <div style="text-align:right;">
-                            <div style="font-size:0.9rem; font-weight:700; color:#ff4757;">+${diffFormatted}</div>
-                            <div style="font-size:0.7rem; color:var(--text-muted); opacity:0.8;">Vượt mức</div>
+                            <div style="font-size:1rem; font-weight:700; color:#ff4757;">+${diffFormatted}</div>
+                            <div style="font-size:0.7rem; color:var(--text-muted);">${descText}</div>
                         </div>
                     </div>
                     
-                    <!-- Visual Bar -->
-                    <div style="width:100%; height:8px; background:rgba(255, 71, 87, 0.25); border-radius:4px; position:relative; overflow:hidden; margin-bottom:6px;">
-                        <div style="position:absolute; top:0; left:0; height:100%; width:${normalPercent}%; background:rgba(255,255,255,0.3); border-right:1px solid rgba(0,0,0,0.2);"></div>
-                    </div>
-                    
-                    <!-- Footer Numbers -->
-                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted);">
-                        <span>Thường lệ: ${formatCurrency(item.baselineNorm)}</span>
-                        <span>Hiện tại: <b style="color:var(--text-light)">${formatCurrency(item.currentSum)}</b></span>
+                    <!-- Visual Comparison Bars -->
+                    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:4px;">
+                        <!-- Baseline Bar (30 days before) -->
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:0.7rem; color:var(--text-muted); width:70px; flex-shrink:0;">30 ngày qua</span>
+                            <div style="flex:1; height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+                                <div style="height:100%; width:${baselineWidth}%; background:rgba(255,255,255,0.35); border-radius:3px;"></div>
+                            </div>
+                            <span style="font-size:0.75rem; color:var(--text-muted); min-width:70px; text-align:right;">${formatCurrency(item.baselineNorm)}</span>
+                        </div>
+                        <!-- Current Bar (last 10 days) -->
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:0.7rem; color:#ff6b7a; width:70px; flex-shrink:0;">10 ngày qua</span>
+                            <div style="flex:1; height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+                                <div style="height:100%; width:${currentWidth}%; background:linear-gradient(90deg, #ff4757, #ff6b7a); border-radius:3px;"></div>
+                            </div>
+                            <span style="font-size:0.75rem; color:#ff4757; font-weight:600; min-width:70px; text-align:right;">${formatCurrency(item.currentSum)}</span>
+                        </div>
                     </div>
                 </div>
             `;
