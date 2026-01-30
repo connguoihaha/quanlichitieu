@@ -573,10 +573,13 @@ export function initListeners() {
                              // No update found (Đã mới nhất)
                              btn.innerHTML = '<i class="fa-solid fa-check"></i> Đang là bản mới nhất';
                              setTimeout(() => {
-                                 btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Kiểm tra cập nhật';
-                                 btn.disabled = false;
-                                 btn.classList.add('btn-secondary');
-                                 btn.classList.remove('btn-primary');
+                                 // Only reset if NOT in reload state (update might have arrived async)
+                                 if (btn.dataset.action !== 'reload') {
+                                     btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Kiểm tra cập nhật';
+                                     btn.disabled = false;
+                                     btn.classList.add('btn-secondary');
+                                     btn.classList.remove('btn-primary');
+                                 }
                              }, 1500);
                          }
                      }).catch(err => {
@@ -685,10 +688,13 @@ export function initListeners() {
                      showToast('Đã có bản cập nhật mới!');
                  } else {
                      btnCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> Đang là bản mới nhất';
-                     showToast('Bạn đang dùng phiên bản mới nhất');
+                     showToast('Bạn đang dùng phiên bản mới nhất', 'info');
                      setTimeout(() => {
-                         btnCheckUpdate.innerHTML = originalText;
-                         btnCheckUpdate.disabled = false;
+                         // Only reset if NOT in reload state
+                         if (btnCheckUpdate.dataset.action !== 'reload') {
+                             btnCheckUpdate.innerHTML = originalText;
+                             btnCheckUpdate.disabled = false;
+                         }
                      }, 3000);
                  }
              } catch (err) {
