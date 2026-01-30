@@ -135,7 +135,7 @@ export function initListeners() {
 
                 // If offline, don't wait for promise (optimistic UI)
                 if (!navigator.onLine) {
-                    showToast("Đã lưu (Offline mode)");
+                    showToast("Đã lưu (Offline mode)", "success");
                     modalTransaction.classList.remove('active');
                     txForm.reset();
                     btnSaveTx.disabled = false;
@@ -147,8 +147,8 @@ export function initListeners() {
 
                 await savePromise;
                 
-                if (state.ui.editingTransactionId) showToast("Đã cập nhật chi tiêu!");
-                else showToast("Đã thêm chi tiêu thành công!");
+                if (state.ui.editingTransactionId) showToast("Đã cập nhật chi tiêu!", "success");
+                else showToast("Đã thêm chi tiêu thành công!", "success");
                 
                 modalTransaction.classList.remove('active');
                 txForm.reset();
@@ -183,7 +183,7 @@ export function initListeners() {
         btnConfirmDelete.addEventListener('click', async () => {
             if (state.ui.editingTransactionId) {
                  await storage.deleteTransactionFromDb(state.ui.editingTransactionId);
-                 showToast("Đã xóa khoản chi!");
+                 showToast("Đã xóa khoản chi!", "success");
                  modalConfirm.classList.remove('active');
                  modalTransaction.classList.remove('active');
             }
@@ -222,7 +222,7 @@ export function initListeners() {
                 render.renderCategories();
                 document.getElementById('modal-category').classList.remove('active');
                 catForm.reset();
-                showToast(`Đã thêm danh mục: ${name}`);
+                showToast(`Đã thêm danh mục: ${name}`, 'success');
             }
         });
     }
@@ -599,7 +599,7 @@ export function initListeners() {
                  btn.classList.remove('btn-secondary');
                  btn.classList.add('btn-primary');
                  btn.disabled = false;
-                 showToast('Đã tải xong bản cập nhật mới!');
+                 showToast('Đã tải xong bản cập nhật mới!', 'info');
              }
         });
     }
@@ -630,7 +630,7 @@ export function initListeners() {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            showToast("Đã tải xuống file CSV!");
+            showToast("Đã tải xuống file CSV!", "success");
         });
     }
 
