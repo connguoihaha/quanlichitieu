@@ -4,6 +4,7 @@
 :root {
     --primary: #7F5AF0;
     --primary-glow: rgba(127, 90, 240, 0.4);
+    --primary-light: rgba(127, 90, 240, 0.15);
     --secondary: #2CB67D;
     --bg-dark: #16161a;
     --card-bg: #242629;
@@ -14,6 +15,87 @@
     --glass-bg: rgba(255, 255, 255, 0.05);
     --glass-border: rgba(255, 255, 255, 0.1);
     --glass-blur: 12px;
+    
+    /* Gradient glows for body */
+    --glow-1: rgba(127, 90, 240, 0.15);
+    --glow-2: rgba(44, 182, 125, 0.1);
+}
+
+/* Theme: Default (Violet) */
+[data-theme="default"] {
+    --primary: #7F5AF0;
+    --primary-glow: rgba(127, 90, 240, 0.4);
+    --primary-light: rgba(127, 90, 240, 0.15);
+    --bg-dark: #16161a;
+    --card-bg: #242629;
+    --glow-1: rgba(127, 90, 240, 0.15);
+    --glow-2: rgba(44, 182, 125, 0.1);
+}
+
+/* Theme: Midnight */
+[data-theme="midnight"] {
+    --primary: #6366F1;
+    --primary-glow: rgba(99, 102, 241, 0.4);
+    --primary-light: rgba(99, 102, 241, 0.15);
+    --bg-dark: #0f0f23;
+    --card-bg: #1a1a2e;
+    --glow-1: rgba(99, 102, 241, 0.2);
+    --glow-2: rgba(139, 92, 246, 0.15);
+}
+
+/* Theme: Slate */
+[data-theme="slate"] {
+    --primary: #94A3B8;
+    --primary-glow: rgba(148, 163, 184, 0.4);
+    --primary-light: rgba(148, 163, 184, 0.15);
+    --bg-dark: #0F172A;
+    --card-bg: #1E293B;
+    --glow-1: rgba(148, 163, 184, 0.18);
+    --glow-2: rgba(226, 232, 240, 0.08);
+}
+
+/* Theme: Warm */
+[data-theme="warm"] {
+    --primary: #F59E0B;
+    --primary-glow: rgba(245, 158, 11, 0.4);
+    --primary-light: rgba(245, 158, 11, 0.15);
+    --bg-dark: #1a1510;
+    --card-bg: #2a2318;
+    --glow-1: rgba(245, 158, 11, 0.15);
+    --glow-2: rgba(239, 68, 68, 0.1);
+}
+
+/* Theme: Mist Blue */
+[data-theme="mist-blue"] {
+    --primary: #7AA2C9;
+    --primary-glow: rgba(122, 162, 201, 0.4);
+    --primary-light: rgba(122, 162, 201, 0.15);
+    --bg-dark: #0E1A2B;
+    --card-bg: #16263D;
+    --glow-1: rgba(122, 162, 201, 0.18);
+    --glow-2: rgba(186, 230, 253, 0.10);
+}
+
+/* Theme: Sage */
+[data-theme="sage"] {
+    --primary: #8FAE9E;
+    --primary-glow: rgba(143, 174, 158, 0.4);
+    --primary-light: rgba(143, 174, 158, 0.15);
+    --bg-dark: #0F1C17;
+    --card-bg: #1B2A24;
+    --glow-1: rgba(143, 174, 158, 0.18);
+    --glow-2: rgba(167, 243, 208, 0.08);
+}
+
+/* Theme: Cloud Gray */
+[data-theme="cloud-gray"] {
+    --primary: #9CA3AF;
+    --primary-glow: rgba(156, 163, 175, 0.4);
+    --primary-light: rgba(156, 163, 175, 0.15);
+    --bg-dark: #0A0A0A;
+    --card-bg: #161616;
+    --glow-1: rgba(156, 163, 175, 0.15);
+    --glow-2: rgba(229, 231, 235, 0.08);
 }
 
 * {
@@ -30,8 +112,8 @@ body {
     min-height: 100vh;
     padding-bottom: 80px; /* Space for FAB */
     background-image: 
-        radial-gradient(circle at 0% 0%, rgba(127, 90, 240, 0.15) 0%, transparent 50%),
-        radial-gradient(circle at 100% 100%, rgba(44, 182, 125, 0.1) 0%, transparent 50%);
+        radial-gradient(circle at 0% 0%, var(--glow-1) 0%, transparent 50%),
+        radial-gradient(circle at 100% 100%, var(--glow-2) 0%, transparent 50%);
     background-attachment: fixed;
 }
 
@@ -259,7 +341,7 @@ body {
 .trans-icon {
     width: 44px;
     height: 44px;
-    background: rgba(127, 90, 240, 0.1);
+    background: var(--primary-light);
     color: var(--primary);
     border-radius: 12px;
     display: flex;
@@ -479,7 +561,7 @@ input[type="text"]:focus {
 
 .category-item.selected .icon {
     border-color: var(--primary);
-    background: rgba(127, 90, 240, 0.2);
+    background: var(--primary-light);
     color: var(--primary);
 }
 
@@ -1179,7 +1261,7 @@ input[type=number] {
 
 .custom-option.selected {
     color: var(--primary);
-    background: rgba(127, 90, 240, 0.1);
+    background: var(--primary-light);
 }
 
 /* Scrollbar for dropdown */
@@ -1285,7 +1367,7 @@ input[type=number] {
 }
 
 .modal-tab.active {
-    background: rgba(127, 90, 240, 0.15); /* Primary glow tint */
+    background: var(--primary-light);
     border-color: var(--primary);
     color: var(--text-main);
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
@@ -1403,10 +1485,10 @@ input[type=number] {
 .fb-fill.projected {
     background: repeating-linear-gradient(
         45deg,
-        rgba(127, 90, 240, 0.3),
-        rgba(127, 90, 240, 0.3) 10px,
-        rgba(127, 90, 240, 0.1) 10px,
-        rgba(127, 90, 240, 0.1) 20px
+        var(--primary-glow),
+        var(--primary-glow) 10px,
+        var(--primary-light) 10px,
+        var(--primary-light) 20px
     );
     z-index: 1;
 }
@@ -1443,5 +1525,68 @@ input[type=number] {
     display: inline-block;
 }
 .dot.current { background: var(--primary); }
-.dot.projected { background: rgba(127, 90, 240, 0.3); }
+.dot.projected { background: var(--primary-glow); }
 
+/* Theme Picker */
+.theme-picker {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    padding: 0.5rem 0;
+}
+
+.theme-option {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.theme-option:hover {
+    transform: scale(1.15);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.theme-option.active {
+    border-color: var(--text-main);
+    box-shadow: 0 0 0 2px var(--bg-dark), 0 0 16px var(--primary);
+}
+
+.theme-option.active::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+
+/* Theme Preview Colors - Split diagonal */
+.theme-option.default {
+    background: linear-gradient(135deg, #16161a 50%, #7F5AF0 50%);
+}
+.theme-option.midnight {
+    background: linear-gradient(135deg, #0f0f23 50%, #6366F1 50%);
+}
+.theme-option.slate {
+    background: linear-gradient(135deg, #0F172A 50%, #94A3B8 50%);
+}
+.theme-option.warm {
+    background: linear-gradient(135deg, #1a1510 50%, #F59E0B 50%);
+}
+.theme-option.mist-blue {
+    background: linear-gradient(135deg, #0E1A2B 50%, #7AA2C9 50%);
+}
+.theme-option.sage {
+    background: linear-gradient(135deg, #0F1C17 50%, #8FAE9E 50%);
+}
+.theme-option.cloud-gray {
+    background: linear-gradient(135deg, #0A0A0A 50%, #9CA3AF 50%);
+}

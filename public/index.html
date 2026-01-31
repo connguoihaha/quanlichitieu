@@ -19,6 +19,14 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/heatmap.css">
     <link rel="stylesheet" href="css/dashboard.css">
+    
+    <!-- Init Theme Immediately to prevent flash -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('app-theme') || 'default';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
 </head>
 <body>
     <div class="app-container">
@@ -395,6 +403,21 @@
                 <p style="margin-top: 1rem; text-align: center; font-size: 0.8rem; color: var(--text-muted); opacity: 0.7;">
                     Dữ liệu sẽ được tải xuống dưới dạng file CSV.
                 </p>
+                
+                <!-- Theme Picker -->
+                <div class="settings-group" style="margin-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <label style="display: block; text-align: center; margin-bottom: 0.8rem; color: var(--text-muted); font-size: 0.9rem;">
+                        <i class="fa-solid fa-palette"></i> Giao diện
+                    </label>
+                    <div class="theme-picker" id="theme-picker">
+                        <div class="theme-option default active" data-theme="default" title="Mặc định"></div>
+                        <div class="theme-option midnight" data-theme="midnight" title="Midnight"></div>
+                        <div class="theme-option slate" data-theme="slate" title="Slate"></div>
+                        <div class="theme-option mist-blue" data-theme="mist-blue" title="Mist Blue"></div>
+                        <div class="theme-option sage" data-theme="sage" title="Sage"></div>
+                        <div class="theme-option cloud-gray" data-theme="cloud-gray" title="Cloud Gray"></div>
+                    </div>
+                </div>
                 
                 <div class="settings-group" style="margin-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">

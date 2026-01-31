@@ -1,4 +1,5 @@
-const CACHE_NAME = 'chitieu-v2.0.0';
+importScripts('./js/version.js');
+const CACHE_NAME = 'chitieu-v' + self.APP_VERSION;
 const ASSETS = [
   './',
   './index.html',

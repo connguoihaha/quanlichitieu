@@ -705,6 +705,38 @@ export function initListeners() {
              }
         });
     }
+
+    // Theme Picker
+    const themePicker = document.getElementById('theme-picker');
+    if (themePicker) {
+        // Sync UI with saved theme
+        const savedTheme = localStorage.getItem('app-theme') || 'default';
+        themePicker.querySelectorAll('.theme-option').forEach(o => o.classList.remove('active'));
+        themePicker.querySelector(`[data-theme="${savedTheme}"]`)?.classList.add('active');
+        
+        themePicker.addEventListener('click', (e) => {
+            const option = e.target.closest('.theme-option');
+            if (option) {
+                const theme = option.dataset.theme;
+                const currentTheme = localStorage.getItem('app-theme') || 'default';
+                
+                // Skip if clicking the same theme
+                if (theme === currentTheme) return;
+                
+                // Update active state
+                themePicker.querySelectorAll('.theme-option').forEach(o => o.classList.remove('active'));
+                option.classList.add('active');
+                
+                // Apply theme
+                document.documentElement.setAttribute('data-theme', theme);
+                
+                // Save to localStorage
+                localStorage.setItem('app-theme', theme);
+                
+                showToast('Đã đổi giao diện', 'success');
+            }
+        });
+    }
 }
 
 function handleSwipe() {
