@@ -757,6 +757,7 @@ function handleSwipe() {
             } else if (state.filter.current === 'week') {
                 nextDate.setDate(nextDate.getDate() + (direction * 7));
             } else if (state.filter.current === 'month') {
+                nextDate.setDate(1); // Prevent day overflow
                 nextDate.setMonth(nextDate.getMonth() + direction);
             } else if (state.filter.current === 'year') {
                 nextDate.setFullYear(nextDate.getFullYear() + direction);
@@ -784,6 +785,8 @@ function handleSwipe() {
             } else if (state.filter.current === 'week') {
                 state.filter.viewDate.setDate(state.filter.viewDate.getDate() + (direction * 7));
             } else if (state.filter.current === 'month') {
+                // Fix: Set day to 1 first to avoid overflow when target month has fewer days
+                state.filter.viewDate.setDate(1);
                 state.filter.viewDate.setMonth(state.filter.viewDate.getMonth() + direction);
             } else if (state.filter.current === 'year') {
                 state.filter.viewDate.setFullYear(state.filter.viewDate.getFullYear() + direction);
