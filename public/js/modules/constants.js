@@ -21,5 +21,4 @@ export const DEFAULT_CATEGORIES = [
     'In Giấy Tờ', 'Tiết Kiệm', 'Chi Phí Khác'
 ];
 
-// Re-export from single source of truth
-export { APP_VERSION } from '../version.js';
+export const APP_VERSION = '2.0.2';
