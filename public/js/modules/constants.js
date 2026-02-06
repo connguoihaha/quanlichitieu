@@ -21,4 +21,4 @@ export const DEFAULT_CATEGORIES = [
     'In Giấy Tờ', 'Tiết Kiệm', 'Chi Phí Khác'
 ];
 
-export const APP_VERSION = '2.0.5';
+export const APP_VERSION = '2.0.3';

@@ -26,11 +26,6 @@ export const state = {
     },
     ui: {
         editingTransactionId: null
-    },
-    loading: {
-        isInitialLoad: true,      // First load since app start
-        dataSource: 'loading',    // 'loading' | 'cache' | 'server'  
-        lastUpdated: null         // Timestamp of last data update
     }
 };
 
