@@ -17,6 +17,138 @@ const forecastContainer = document.getElementById('forecast-container');
 const heatmapGridEl = document.getElementById('heatmap-grid');
 const heatmapLabelEl = document.getElementById('heatmap-month-label');
 
+// ===== SKELETON LOADING FUNCTIONS =====
+
+/**
+ * Render skeleton loading state for transactions list
+ * Shows placeholder UI while data is loading
+ */
+export function renderTransactionsSkeleton() {
+    if (!transactionsListEl) return;
+    
+    // Show loading balance
+    if (totalBalanceEl) {
+        totalBalanceEl.innerHTML = '<span class="skeleton" style="display:inline-block; width:150px; height:36px; border-radius:8px;"></span>';
+    }
+    
+    // Generate skeleton groups
+    let skeletonHTML = '';
+    
+    // Create 2 skeleton groups with 3 items each
+    for (let g = 0; g < 2; g++) {
+        skeletonHTML += `
+            <div class="skeleton-group">
+                <div class="skeleton-header">
+                    <div class="skeleton skeleton-date"></div>
+                    <div class="skeleton skeleton-total"></div>
+                </div>
+        `;
+        
+        // 3 skeleton items per group
+        const itemCount = g === 0 ? 3 : 2;
+        for (let i = 0; i < itemCount; i++) {
+            skeletonHTML += `
+                <div class="skeleton-item">
+                    <div class="skeleton skeleton-icon"></div>
+                    <div class="skeleton-details">
+                        <div class="skeleton skeleton-title"></div>
+                        <div class="skeleton skeleton-subtitle"></div>
+                    </div>
+                    <div class="skeleton skeleton-amount"></div>
+                </div>
+            `;
+        }
+        
+        skeletonHTML += '</div>';
+    }
+    
+    transactionsListEl.innerHTML = skeletonHTML;
+}
+
+// Track sync indicator timeout
+let syncIndicatorTimeout = null;
+
+/**
+ * Update sync status indicator in UI
+ * Shows a floating pill at top when syncing data
+ */
+export function updateDataSourceIndicator(source) {
+    // Get or create the sync indicator element
+    let indicator = document.getElementById('sync-indicator');
+    
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'sync-indicator';
+        indicator.className = 'sync-indicator';
+        indicator.innerHTML = `
+            <div class="sync-icon"><i class="fa-solid fa-arrows-rotate"></i></div>
+            <span class="sync-text">Đang đồng bộ...</span>
+            <div class="sync-progress"><div class="sync-progress-bar"></div></div>
+        `;
+        document.body.appendChild(indicator);
+    }
+    
+    const textEl = indicator.querySelector('.sync-text');
+    const iconEl = indicator.querySelector('.sync-icon i');
+    
+    // Clear any existing timeout
+    if (syncIndicatorTimeout) {
+        clearTimeout(syncIndicatorTimeout);
+        syncIndicatorTimeout = null;
+    }
+    
+    // Helper function to hide indicator
+    const hideIndicator = (showSuccess = false) => {
+        if (showSuccess) {
+            indicator.className = 'sync-indicator success active';
+            iconEl.className = 'fa-solid fa-check';
+            textEl.textContent = 'Đã đồng bộ!';
+            
+            setTimeout(() => {
+                indicator.classList.remove('active');
+                indicator.classList.add('hiding');
+                setTimeout(() => {
+                    indicator.className = 'sync-indicator';
+                }, 400);
+            }, 1200);
+        } else {
+            indicator.classList.remove('active');
+            indicator.classList.add('hiding');
+            setTimeout(() => {
+                indicator.className = 'sync-indicator';
+            }, 400);
+        }
+    };
+    
+    if (source === 'cache') {
+        // Show syncing state
+        indicator.className = 'sync-indicator syncing';
+        iconEl.className = 'fa-solid fa-arrows-rotate';
+        textEl.textContent = 'Đang đồng bộ...';
+        
+        // Animate in
+        requestAnimationFrame(() => {
+            indicator.classList.add('active');
+        });
+        
+        // Auto-hide after 3 seconds if server data doesn't arrive
+        syncIndicatorTimeout = setTimeout(() => {
+            if (indicator.classList.contains('syncing')) {
+                hideIndicator(true); // Show success anyway (data might be up-to-date from cache)
+            }
+        }, 3000);
+        
+    } else if (source === 'server') {
+        // Show success state briefly
+        hideIndicator(true);
+        
+    } else if (source === 'hide') {
+        // Hide immediately without success message
+        hideIndicator(false);
+    }
+}
+
+
 export function renderTransactions() {
     const filtered = getFilteredTransactions();
 

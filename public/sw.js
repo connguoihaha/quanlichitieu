@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chitieu-v2.0.3';
+const CACHE_NAME = 'chitieu-v2.0.5';
 const ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const ASSETS = [
   './css/style.css',
   './css/heatmap.css',
   './css/dashboard.css',
+  './css/skeleton.css',
   './js/app.js',
   './js/utils.js',
   './js/firebase.js',
@@ -24,25 +25,44 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  self.skipWaiting();
+  console.log('[SW] Installing new version:', CACHE_NAME);
   e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[SW] Caching assets');
+      return cache.addAll(ASSETS);
+    }).then(() => {
+      console.log('[SW] Assets cached, ready to activate');
+      // Don't auto-skip waiting, let the user control when to update
+      // self.skipWaiting();
+    })
   );
 });
 
 self.addEventListener('activate', (e) => {
+  console.log('[SW] Activating new version:', CACHE_NAME);
   e.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(
         keyList.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('[SW] Deleting old cache:', key);
             return caches.delete(key);
           }
         })
       );
+    }).then(() => {
+      console.log('[SW] Old caches cleared');
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
+});
+
+// Listen for skip waiting message from client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW] Received SKIP_WAITING message, activating now');
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (e) => {

@@ -8,10 +8,32 @@ export function initListeners() {
     // Initialize Swipe Modal Logic
     initSwipeModal();
     
-    // 1. Initial Data Load
+    // 1. Initial Data Load with Cache Awareness
     storage.listenToTransactions((data, fromCache) => {
+        // Update loading state
+        const wasInitialLoad = state.loading.isInitialLoad;
+        
+        if (fromCache) {
+            state.loading.dataSource = 'cache';
+            console.log('[Data] Loaded from cache:', data.length, 'transactions');
+        } else {
+            state.loading.dataSource = 'server';
+            state.loading.isInitialLoad = false; // Server data = initial load complete
+            state.loading.lastUpdated = new Date();
+            console.log('[Data] Synced from server:', data.length, 'transactions');
+        }
+        
+        // Set transactions and render
         setTransactions(data);
         render.renderTransactions();
+        
+        // Update sync indicator based on data source
+        if (fromCache && wasInitialLoad) {
+            render.updateDataSourceIndicator('cache');
+        } else if (!fromCache && wasInitialLoad) {
+            // Server data arrived after cache - show success
+            render.updateDataSourceIndicator('server');
+        }
         
         // Update analysis if open
         const modalAnalysis = document.getElementById('modal-analysis');
@@ -24,6 +46,7 @@ export function initListeners() {
         }
         
     }, (err) => {
+        console.error('[Data] Sync error:', err);
         showToast("Lỗi đồng bộ dữ liệu!", "error");
     });
 
@@ -528,86 +551,176 @@ export function initListeners() {
         });
     }
 
-    // Settings & Export
+    // ===== UPDATE CHECK LOGIC =====
+    let updateCheckTimeout = null;
+    
+    // Centralized update check function
+    async function checkForUpdates(button, options = {}) {
+        const { showLoadingState = true, showSuccessToast = false } = options;
+        
+        if (!button || !('serviceWorker' in navigator)) {
+            if (button) {
+                button.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Không hỗ trợ';
+                button.disabled = true;
+            }
+            return;
+        }
+
+        // Clear any pending timeout
+        if (updateCheckTimeout) {
+            clearTimeout(updateCheckTimeout);
+            updateCheckTimeout = null;
+        }
+
+        // If already in reload state, don't check again
+        if (button.dataset.action === 'reload') {
+            return;
+        }
+
+        const originalText = button.innerHTML;
+        
+        if (showLoadingState) {
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang kiểm tra...';
+        }
+
+        try {
+            const reg = await navigator.serviceWorker.getRegistration();
+            
+            if (!reg) {
+                button.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Lỗi SW';
+                button.disabled = true;
+                return;
+            }
+
+            // Check if update is already waiting
+            if (reg.waiting || reg.installing) {
+                setUpdateAvailable(button);
+                return;
+            }
+
+            // Trigger update check
+            await reg.update();
+            
+            // Check again after update
+            const newWorker = reg.installing || reg.waiting;
+            
+            if (newWorker) {
+                setUpdateAvailable(button);
+                if (showSuccessToast) {
+                    showToast('Đã có bản cập nhật mới!', 'success');
+                }
+            } else {
+                // No update available
+                button.innerHTML = '<i class="fa-solid fa-check"></i> Đã là bản mới nhất';
+                button.disabled = false;
+                
+                // Reset button after delay (only if modal is still open and state hasn't changed)
+                updateCheckTimeout = setTimeout(() => {
+                    const modal = document.getElementById('modal-settings');
+                    if (button.dataset.action !== 'reload' && modal && modal.classList.contains('active')) {
+                        button.innerHTML = originalText;
+                        button.classList.add('btn-secondary');
+                        button.classList.remove('btn-primary');
+                    }
+                    updateCheckTimeout = null;
+                }, 2000);
+                
+                if (showSuccessToast) {
+                    showToast('Bạn đang dùng phiên bản mới nhất', 'info');
+                }
+            }
+        } catch (err) {
+            console.error('Update check failed:', err);
+            button.innerHTML = '<i class="fa-solid fa-rotate"></i> Kiểm tra cập nhật';
+            button.disabled = false;
+            button.classList.add('btn-secondary');
+            button.classList.remove('btn-primary');
+            
+            if (showSuccessToast) {
+                showToast('Lỗi khi kiểm tra cập nhật', 'error');
+            }
+        }
+    }
+
+    function setUpdateAvailable(button) {
+        if (!button) return;
+        
+        button.dataset.action = 'reload';
+        button.innerHTML = '<i class="fa-solid fa-download"></i> Cập nhật ngay';
+        button.classList.remove('btn-secondary');
+        button.classList.add('btn-primary');
+        button.disabled = false;
+    }
+
+    // Settings Modal - Auto check on open
     const btnSettings = document.getElementById('btn-settings');
     const modalSettings = document.getElementById('modal-settings');
-    if (btnSettings) {
+    
+    if (btnSettings && modalSettings) {
         btnSettings.addEventListener('click', () => {
-             modalSettings.classList.add('active');
-             
-             // Auto check for updates
-             const btn = document.getElementById('btn-check-update');
-             if (btn && 'serviceWorker' in navigator) {
-                 // Reset UI elements just in case
-                 if (btn.dataset.action !== 'reload') {
-                      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang kiểm tra...';
-                      btn.disabled = true;
-                 }
-                 
-                 navigator.serviceWorker.getRegistration().then(reg => {
-                     if (!reg) {
-                         btn.innerHTML = 'Lỗi SW';
-                         return;
-                     }
-
-                     // 1. Check if update is already waiting (đã tải xong, chờ reload)
-                     if (reg.waiting || reg.installing) {
-                         btn.dataset.action = 'reload';
-                         btn.innerHTML = '<i class="fa-solid fa-download"></i> Cập nhật ngay';
-                         btn.classList.remove('btn-secondary');
-                         btn.classList.add('btn-primary');
-                         btn.disabled = false;
-                         return;
-                     }
-
-                     // 2. If not, trigger a check (silent or with feedback)
-                     reg.update().then(() => {
-                         const newWorker = reg.installing || reg.waiting;
-                         if (newWorker) {
-                             btn.dataset.action = 'reload';
-                             btn.innerHTML = '<i class="fa-solid fa-download"></i> Cập nhật ngay';
-                             btn.classList.remove('btn-secondary');
-                             btn.classList.add('btn-primary');
-                             btn.disabled = false;
-                         } else {
-                             // No update found (Đã mới nhất)
-                             btn.innerHTML = '<i class="fa-solid fa-check"></i> Đang là bản mới nhất';
-                             setTimeout(() => {
-                                 // Only reset if NOT in reload state (update might have arrived async)
-                                 if (btn.dataset.action !== 'reload') {
-                                     btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Kiểm tra cập nhật';
-                                     btn.disabled = false;
-                                     btn.classList.add('btn-secondary');
-                                     btn.classList.remove('btn-primary');
-                                 }
-                             }, 1500);
-                         }
-                     }).catch(err => {
-                         console.error('Auto update check failed', err);
-                         btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Kiểm tra cập nhật';
-                         btn.disabled = false;
-                     });
-                 });
-             }
+            modalSettings.classList.add('active');
+            
+            // Auto check for updates when opening settings
+            const btn = document.getElementById('btn-check-update');
+            if (btn) {
+                checkForUpdates(btn, { showLoadingState: true, showSuccessToast: false });
+            }
+        });
+        
+        // Clean up timeout when modal closes
+        const closeSettingsBtn = document.getElementById('close-settings-modal');
+        const handleSettingsClose = () => {
+            if (updateCheckTimeout) {
+                clearTimeout(updateCheckTimeout);
+                updateCheckTimeout = null;
+            }
+        };
+        
+        if (closeSettingsBtn) {
+            closeSettingsBtn.addEventListener('click', handleSettingsClose);
+        }
+        
+        modalSettings.addEventListener('click', (e) => {
+            if (e.target === modalSettings) {
+                handleSettingsClose();
+            }
         });
     }
 
-    // Listen for controller change (active SW changed) -> Force update button
+    // Listen for controller change (SW activated)
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-             const btn = document.getElementById('btn-check-update');
-             if (btn) {
-                 btn.dataset.action = 'reload';
-                 btn.innerHTML = '<i class="fa-solid fa-download"></i> Cập nhật ngay';
-                 btn.classList.remove('btn-secondary');
-                 btn.classList.add('btn-primary');
-                 btn.disabled = false;
-                 showToast('Đã tải xong bản cập nhật mới!', 'info');
-             }
+            const btn = document.getElementById('btn-check-update');
+            if (btn) {
+                setUpdateAvailable(btn);
+                showToast('Đã tải xong bản cập nhật mới!', 'info');
+            }
+        });
+        
+        // Listen for SW state changes
+        navigator.serviceWorker.ready.then(reg => {
+            if (reg.waiting) {
+                const btn = document.getElementById('btn-check-update');
+                if (btn) setUpdateAvailable(btn);
+            }
+            
+            // Monitor for new SW installations
+            reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                if (newWorker) {
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            const btn = document.getElementById('btn-check-update');
+                            if (btn) setUpdateAvailable(btn);
+                        }
+                    });
+                }
+            });
         });
     }
 
-
+    // Export Data
     const btnExport = document.getElementById('btn-export-data');
     if (btnExport) {
         btnExport.addEventListener('click', () => {
@@ -637,72 +750,47 @@ export function initListeners() {
         });
     }
 
-    // Version & Update Check
+    // Version Display
     const versionEl = document.getElementById('app-version');
     if (versionEl) {
         versionEl.innerText = 'v' + APP_VERSION;
     }
 
+    // Manual Update Check Button
     const btnCheckUpdate = document.getElementById('btn-check-update');
     if (btnCheckUpdate) {
         btnCheckUpdate.addEventListener('click', async () => {
-             // If button is already in "Update Now" state (reload)
-             if (btnCheckUpdate.dataset.action === 'reload') {
-                 showToast("Đang tải lại ứng dụng...", "info");
-                 // Slight delay to show toast
-                 setTimeout(() => {
-                    window.location.reload();
-                 }, 500);
-                 return;
-             }
+            // If button is in "Update Now" state, reload the app
+            if (btnCheckUpdate.dataset.action === 'reload') {
+                btnCheckUpdate.disabled = true;
+                btnCheckUpdate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tải lại...';
+                showToast("Đang cập nhật ứng dụng...", "info");
+                
+                try {
+                    // Tell the waiting service worker to activate
+                    const reg = await navigator.serviceWorker.getRegistration();
+                    if (reg && reg.waiting) {
+                        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        // Wait a bit for the SW to activate, then reload
+                        setTimeout(() => {
+                            window.location.reload(true);
+                        }, 500);
+                    } else {
+                        // No waiting worker, just reload
+                        window.location.reload(true);
+                    }
+                } catch (err) {
+                    console.error('Error activating SW:', err);
+                    // Fallback: just reload
+                    setTimeout(() => {
+                        window.location.reload(true);
+                    }, 500);
+                }
+                return;
+            }
 
-             if (!('serviceWorker' in navigator)) {
-                 showToast('Trình duyệt không hỗ trợ cập nhật tự động', 'error');
-                 return;
-             }
-
-             const originalText = btnCheckUpdate.innerHTML;
-             btnCheckUpdate.disabled = true;
-             btnCheckUpdate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang kiểm tra...';
-
-             try {
-                 const reg = await navigator.serviceWorker.getRegistration();
-                 if (!reg) {
-                     showToast('Không tìm thấy Service Worker', 'error');
-                     btnCheckUpdate.disabled = false;
-                     btnCheckUpdate.innerHTML = originalText;
-                     return;
-                 }
-
-                 await reg.update();
-                 
-                 // Check if a new SW is installing or waiting
-                 const newWorker = reg.installing || reg.waiting;
-                 
-                 if (newWorker) {
-                     btnCheckUpdate.dataset.action = 'reload';
-                     btnCheckUpdate.innerHTML = '<i class="fa-solid fa-download"></i> Cập nhật ngay';
-                     btnCheckUpdate.classList.remove('btn-secondary');
-                     btnCheckUpdate.classList.add('btn-primary');
-                     btnCheckUpdate.disabled = false;
-                     showToast('Đã có bản cập nhật mới!');
-                 } else {
-                     btnCheckUpdate.innerHTML = '<i class="fa-solid fa-check"></i> Đang là bản mới nhất';
-                     showToast('Bạn đang dùng phiên bản mới nhất', 'info');
-                     setTimeout(() => {
-                         // Only reset if NOT in reload state
-                         if (btnCheckUpdate.dataset.action !== 'reload') {
-                             btnCheckUpdate.innerHTML = originalText;
-                             btnCheckUpdate.disabled = false;
-                         }
-                     }, 3000);
-                 }
-             } catch (err) {
-                 console.error('Update check failed:', err);
-                 showToast('Lỗi khi kiểm tra cập nhật', 'error');
-                 btnCheckUpdate.disabled = false;
-                 btnCheckUpdate.innerHTML = originalText;
-             }
+            // Otherwise, manually check for updates
+            await checkForUpdates(btnCheckUpdate, { showLoadingState: true, showSuccessToast: true });
         });
     }
 
